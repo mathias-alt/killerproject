@@ -7,7 +7,7 @@ import { GanttChart } from "@/components/gantt/gantt-chart";
 
 export default function GanttPage() {
   const { tasks, setTasks, loading, updateTask, deleteTask, refetch } = useAllTasks();
-  const { dependencies } = useDependencies();
+  const { dependencies, addDependency, removeDependency } = useDependencies();
 
   useRealtimeAllTasks(setTasks, refetch);
 
@@ -16,6 +16,6 @@ export default function GanttPage() {
   }
 
   return (
-    <GanttChart tasks={tasks} dependencies={dependencies} onUpdateTask={updateTask} onDeleteTask={deleteTask} />
+    <GanttChart tasks={tasks} dependencies={dependencies} onUpdateTask={updateTask} onDeleteTask={deleteTask} onAddDependency={addDependency} onRemoveDependency={removeDependency} />
   );
 }

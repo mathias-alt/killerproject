@@ -12,7 +12,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
   const { projectId } = use(params);
   const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch } =
     useTasks(projectId);
-  const { dependencies } = useDependencies(projectId);
+  const { dependencies, addDependency, removeDependency } = useDependencies(projectId);
 
   useRealtimeTasks(projectId, setTasks, refetch);
 
@@ -44,6 +44,8 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
             dependencies={dependencies}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
+            onAddDependency={addDependency}
+            onRemoveDependency={removeDependency}
           />
         </TabsContent>
       </Tabs>

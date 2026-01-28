@@ -8,6 +8,8 @@ import { GanttHeader, type ZoomLevel } from "./gantt-header";
 import { GanttBar } from "./gantt-bar";
 import { GanttSidebar } from "./gantt-sidebar";
 import { TaskDialog } from "@/components/tasks/task-dialog";
+import { Link2, Unlink2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Task, TaskWithAssignee, TaskDependency } from "@/lib/types/database";
 
 const ZOOM_CONFIG: Record<ZoomLevel, number> = {
@@ -23,13 +25,19 @@ interface GanttChartProps {
   dependencies?: TaskDependency[];
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<{ data: unknown; error: unknown }>;
   onDeleteTask: (id: string) => Promise<{ error: unknown }>;
+  onAddDependency?: (taskId: string, dependsOnId: string) => Promise<{ data: unknown; error: unknown }>;
+  onRemoveDependency?: (id: string) => Promise<{ error: unknown }>;
 }
 
-export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTask }: GanttChartProps) {
+export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTask, onAddDependency, onRemoveDependency }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("day");
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Link mode state
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkSource, setLinkSource] = useState<string | null>(null);
 
   const dayWidth = ZOOM_CONFIG[zoom];
 
@@ -79,10 +87,8 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     const draggedNewStart = new Date(newStart);
     const daysDelta = differenceInDays(draggedNewStart, oldStart);
 
-    // Update the dragged task
     await onUpdateTask(taskId, { start_date: newStart, end_date: newEnd });
 
-    // Update dependents by the same delta
     if (daysDelta !== 0) {
       const dependentIds = getDependents(taskId);
       for (const depId of dependentIds) {
@@ -100,6 +106,33 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
       }
     }
   }, [tasksWithDates, onUpdateTask, getDependents]);
+
+  // Handle bar click in link mode
+  const handleBarClick = useCallback((task: TaskWithAssignee) => {
+    if (!linkMode || !onAddDependency) {
+      setSelectedTask(task);
+      setEditDialogOpen(true);
+      return;
+    }
+
+    if (!linkSource) {
+      // First click: select source (the task that must finish first)
+      setLinkSource(task.id);
+    } else {
+      // Second click: select target (the dependent task)
+      if (task.id !== linkSource) {
+        // Check if link already exists
+        const exists = dependencies.some(
+          (d) => d.depends_on_id === linkSource && d.task_id === task.id
+        );
+        if (!exists) {
+          onAddDependency(task.id, linkSource);
+        }
+      }
+      setLinkSource(null);
+      setLinkMode(false);
+    }
+  }, [linkMode, linkSource, onAddDependency, dependencies]);
 
   // Compute dependency arrows
   const arrows = useMemo(() => {
@@ -126,6 +159,9 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
       .filter(Boolean) as { x1: number; y1: number; x2: number; y2: number; id: string }[];
   }, [dependencies, taskIndexMap, tasksWithDates, timelineStart, dayWidth]);
 
+  // Find the source task name for the link mode indicator
+  const linkSourceTask = linkSource ? tasksWithDates.find((t) => t.id === linkSource) : null;
+
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full">
@@ -142,20 +178,67 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
               {z.charAt(0).toUpperCase() + z.slice(1)}
             </Button>
           ))}
+
+          <div className="ml-4 border-l pl-4 flex items-center gap-2">
+            {onAddDependency && (
+              <Button
+                variant={linkMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setLinkMode(!linkMode);
+                  setLinkSource(null);
+                }}
+              >
+                <Link2 className="h-4 w-4 mr-1" />
+                {linkMode ? "Cancel" : "Link Tasks"}
+              </Button>
+            )}
+            {onRemoveDependency && dependencies.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Remove the last dependency as a simple UX — or we could show a list
+                  // For now, we'll remove via clicking arrows (handled below)
+                }}
+                className="hidden"
+              >
+                <Unlink2 className="h-4 w-4 mr-1" />
+                Unlink
+              </Button>
+            )}
+          </div>
+
           <span className="ml-auto text-xs text-muted-foreground">
-            {tasksWithDates.length} of {tasks.length} tasks with dates
+            {linkMode ? (
+              linkSource ? (
+                <span className="text-primary font-medium">
+                  Now click the dependent task (the one that depends on &quot;{linkSourceTask?.title}&quot;)
+                </span>
+              ) : (
+                <span className="text-primary font-medium">
+                  Click the task that must finish first
+                </span>
+              )
+            ) : (
+              `${tasksWithDates.length} of ${tasks.length} tasks with dates`
+            )}
           </span>
         </div>
 
         {/* Chart body */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className={cn("flex flex-1 overflow-hidden", linkMode && "cursor-crosshair")}>
           {/* Sidebar */}
           <GanttSidebar
             tasks={tasksWithDates}
             rowHeight={ROW_HEIGHT}
             onTaskClick={(t) => {
-              setSelectedTask(t);
-              setEditDialogOpen(true);
+              if (linkMode) {
+                handleBarClick(t);
+              } else {
+                setSelectedTask(t);
+                setEditDialogOpen(true);
+              }
             }}
           />
 
@@ -168,25 +251,40 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 {/* Dependency arrows */}
                 {arrows.length > 0 && (
                   <svg
-                    className="absolute top-0 left-0 pointer-events-none z-5"
-                    style={{ width: timelineWidth, height: tasksWithDates.length * ROW_HEIGHT }}
+                    className="absolute top-0 left-0 z-5"
+                    style={{ width: timelineWidth, height: tasksWithDates.length * ROW_HEIGHT, pointerEvents: onRemoveDependency ? "auto" : "none" }}
                   >
                     <defs>
                       <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
                         <polygon points="0 0, 8 3, 0 6" className="fill-muted-foreground" />
                       </marker>
+                      <marker id="arrowhead-hover" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <polygon points="0 0, 8 3, 0 6" fill="#ef4444" />
+                      </marker>
                     </defs>
                     {arrows.map((a) => {
                       const midX = (a.x1 + a.x2) / 2;
                       return (
-                        <path
-                          key={a.id}
-                          d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
-                          className="stroke-muted-foreground"
-                          strokeWidth={1.5}
-                          fill="none"
-                          markerEnd="url(#arrowhead)"
-                        />
+                        <g key={a.id} className="group">
+                          {/* Invisible wider hit area for clicking */}
+                          {onRemoveDependency && (
+                            <path
+                              d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
+                              strokeWidth={12}
+                              fill="none"
+                              stroke="transparent"
+                              className="cursor-pointer"
+                              onClick={() => onRemoveDependency(a.id)}
+                            />
+                          )}
+                          <path
+                            d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
+                            className="stroke-muted-foreground group-hover:stroke-red-500 transition-colors pointer-events-none"
+                            strokeWidth={1.5}
+                            fill="none"
+                            markerEnd="url(#arrowhead)"
+                          />
+                        </g>
                       );
                     })}
                   </svg>
@@ -204,21 +302,21 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 {tasksWithDates.map((task) => (
                   <div
                     key={task.id}
-                    className="relative border-b"
+                    className={cn(
+                      "relative border-b",
+                      linkMode && linkSource === task.id && "bg-primary/10"
+                    )}
                     style={{ height: ROW_HEIGHT }}
                   >
                     <GanttBar
                       task={task}
                       timelineStart={timelineStart}
                       dayWidth={dayWidth}
-                      onClick={() => {
-                        setSelectedTask(task);
-                        setEditDialogOpen(true);
-                      }}
-                      onDragEnd={(newStart, newEnd) => {
+                      onClick={() => handleBarClick(task)}
+                      onDragEnd={linkMode ? undefined : (newStart, newEnd) => {
                         handleDragEnd(task.id, newStart, newEnd);
                       }}
-                      onResizeEnd={(newEnd) => {
+                      onResizeEnd={linkMode ? undefined : (newEnd) => {
                         onUpdateTask(task.id, { end_date: newEnd });
                       }}
                     />

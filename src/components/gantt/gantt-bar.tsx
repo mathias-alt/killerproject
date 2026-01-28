@@ -20,8 +20,8 @@ interface GanttBarProps {
   timelineStart: Date;
   dayWidth: number;
   onClick: () => void;
-  onDragEnd: (newStartDate: string, newEndDate: string) => void;
-  onResizeEnd: (newEndDate: string) => void;
+  onDragEnd?: (newStartDate: string, newEndDate: string) => void;
+  onResizeEnd?: (newEndDate: string) => void;
 }
 
 export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, onResizeEnd }: GanttBarProps) {
@@ -40,6 +40,8 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, mode: "move" | "resize") => {
+      if (mode === "move" && !onDragEnd) return;
+      if (mode === "resize" && !onResizeEnd) return;
       e.stopPropagation();
       e.preventDefault();
       didDrag.current = false;
@@ -73,12 +75,12 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
           newStart.setDate(newStart.getDate() + daysDelta);
           const newEnd = new Date(end);
           newEnd.setDate(newEnd.getDate() + daysDelta);
-          onDragEnd(newStart.toISOString().split("T")[0], newEnd.toISOString().split("T")[0]);
+          onDragEnd?.(newStart.toISOString().split("T")[0], newEnd.toISOString().split("T")[0]);
         } else {
           const newEnd = new Date(end);
           newEnd.setDate(newEnd.getDate() + daysDelta);
           if (newEnd >= start) {
-            onResizeEnd(newEnd.toISOString().split("T")[0]);
+            onResizeEnd?.(newEnd.toISOString().split("T")[0]);
           }
         }
       }
