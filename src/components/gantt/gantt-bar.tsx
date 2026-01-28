@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import { differenceInDays } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { TaskWithAssignee } from "@/lib/types/database";
+import type { TaskWithAssignee, TaskWithProject } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 
 const statusColors: Record<string, { bg: string; progress: string }> = {
@@ -13,6 +13,19 @@ const statusColors: Record<string, { bg: string; progress: string }> = {
   in_review: { bg: "bg-purple-400", progress: "bg-purple-500" },
   done: { bg: "bg-green-400", progress: "bg-green-500" },
 };
+
+function hasProject(task: TaskWithAssignee): task is TaskWithProject {
+  return "project" in task && (task as TaskWithProject).project != null;
+}
+
+// Darken a hex color by a percentage (for progress fill)
+function darkenColor(hex: string, percent: number): string {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, (num >> 16) - Math.round(255 * percent));
+  const g = Math.max(0, ((num >> 8) & 0x00ff) - Math.round(255 * percent));
+  const b = Math.max(0, (num & 0x0000ff) - Math.round(255 * percent));
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
+}
 
 interface GanttBarProps {
   task: TaskWithAssignee;
@@ -65,7 +78,10 @@ export function GanttBar({
 
   const barHeight = rowHeight - 10;
   const barTop = 5;
-  const colors = statusColors[task.status] || statusColors.todo;
+
+  // Use project color if available, otherwise fall back to status colors
+  const projectColor = hasProject(task) ? task.project!.color : null;
+  const statusColor = statusColors[task.status] || statusColors.todo;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, mode: "move" | "resize") => {
@@ -144,12 +160,18 @@ export function GanttBar({
           ref={barRef}
           className={cn(
             "absolute rounded cursor-pointer flex items-center overflow-visible select-none shadow-sm transition-shadow",
-            colors.bg,
+            !projectColor && statusColor.bg,
             isDragging && "opacity-80 shadow-md",
             isDependencyDragging && isValidDropTarget && "ring-2 ring-primary ring-offset-1",
             isDependencyDragging && !isValidDropTarget && "opacity-50"
           )}
-          style={{ left, width, top: barTop, height: barHeight }}
+          style={{
+            left,
+            width,
+            top: barTop,
+            height: barHeight,
+            ...(projectColor && { backgroundColor: projectColor }),
+          }}
           onClick={() => { if (!didDrag.current) onClick(); }}
           onMouseDown={(e) => handleMouseDown(e, "move")}
           onMouseEnter={() => setIsHovered(true)}
@@ -159,8 +181,11 @@ export function GanttBar({
           {/* Progress fill */}
           {progress > 0 && progress < 100 && (
             <div
-              className={cn("absolute inset-y-0 left-0 rounded-l opacity-60", colors.progress)}
-              style={{ width: `${progress}%` }}
+              className={cn("absolute inset-y-0 left-0 rounded-l opacity-60", !projectColor && statusColor.progress)}
+              style={{
+                width: `${progress}%`,
+                ...(projectColor && { backgroundColor: darkenColor(projectColor, 0.15) }),
+              }}
             />
           )}
 
@@ -199,6 +224,15 @@ export function GanttBar({
       <TooltipContent side="top" className="max-w-xs">
         <div className="space-y-1">
           <p className="font-medium">{task.title}</p>
+          {hasProject(task) && (
+            <p className="text-xs flex items-center gap-1.5">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: task.project!.color }}
+              />
+              {task.project!.name}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {task.start_date} → {task.end_date}
           </p>
