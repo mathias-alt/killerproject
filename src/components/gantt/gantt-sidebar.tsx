@@ -18,16 +18,19 @@ function hasProject(task: TaskWithAssignee): task is TaskWithProject {
 
 export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, selectedTaskId }: GanttSidebarProps) {
   return (
-    <div className="shrink-0 border-r bg-background flex flex-col" style={{ width: 360 }}>
-      {/* Header row matching the timeline header height */}
+    <div className="flex flex-col h-full" style={{ width: 360 }}>
+      {/* Spacer to align with timeline month header */}
+      <div style={{ height: headerHeight }} />
+
+      {/* Column headers aligned with task rows */}
       <div
-        className="border-b bg-muted/30 flex items-end text-xs font-medium text-muted-foreground"
-        style={{ height: headerHeight }}
+        className="flex items-center border-b bg-muted/30 text-xs font-medium text-muted-foreground"
+        style={{ height: rowHeight }}
       >
-        <div className="w-24 px-2 py-2 border-r">Project</div>
-        <div className="flex-1 px-3 py-2 border-r">Task</div>
-        <div className="w-16 px-2 py-2 text-center border-r">Start</div>
-        <div className="w-16 px-2 py-2 text-center">End</div>
+        <div className="w-24 px-2 border-r h-full flex items-center">Project</div>
+        <div className="flex-1 px-3 border-r h-full flex items-center">Task</div>
+        <div className="w-16 px-2 text-center border-r h-full flex items-center justify-center">Start</div>
+        <div className="w-16 px-2 text-center h-full flex items-center justify-center">End</div>
       </div>
 
       {/* Task rows */}

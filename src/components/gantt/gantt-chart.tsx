@@ -34,6 +34,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
   // Dependency drag state
@@ -190,6 +191,20 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     };
   }, [dependencyDrag]);
 
+  // Sync vertical scroll between sidebar and timeline
+  useEffect(() => {
+    const timeline = scrollRef.current;
+    const sidebar = sidebarRef.current;
+    if (!timeline || !sidebar) return;
+
+    const handleScroll = () => {
+      sidebar.scrollTop = timeline.scrollTop;
+    };
+
+    timeline.addEventListener("scroll", handleScroll);
+    return () => timeline.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // Compute dependency arrows with right-angle routing
   const arrows = useMemo(() => {
     return dependencies
@@ -283,10 +298,13 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
           </span>
         </div>
 
-        {/* Chart body - single scroll container for both sidebar and timeline */}
-        <div className={cn("flex-1 overflow-auto", dependencyDrag && "cursor-crosshair")} ref={scrollRef}>
-          <div className="flex min-w-full" style={{ width: `calc(360px + ${timelineWidth}px)` }}>
-            {/* Sidebar */}
+        {/* Chart body - sidebar sticky left, timeline scrolls horizontally */}
+        <div className={cn("flex flex-1 overflow-hidden", dependencyDrag && "cursor-crosshair")}>
+          {/* Sticky Sidebar - syncs vertical scroll with timeline */}
+          <div
+            ref={sidebarRef}
+            className="shrink-0 border-r bg-background z-10 overflow-y-hidden overflow-x-hidden"
+          >
             <GanttSidebar
               tasks={tasksWithDates}
               rowHeight={ROW_HEIGHT}
@@ -297,9 +315,11 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 setEditDialogOpen(true);
               }}
             />
+          </div>
 
-            {/* Timeline */}
-            <div ref={chartRef} className="flex-1" style={{ minWidth: timelineWidth }}>
+          {/* Timeline - scrollable both directions */}
+          <div className="flex-1 overflow-auto" ref={scrollRef}>
+            <div ref={chartRef} style={{ width: timelineWidth, minHeight: "100%" }}>
               <GanttHeader startDate={timelineStart} endDate={timelineEnd} zoom={zoom} dayWidth={dayWidth} />
 
               <div className="relative">
