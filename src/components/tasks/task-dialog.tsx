@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { TASK_STATUSES, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/types/database";
 import type { Task, TaskStatus, TaskPriority, Project } from "@/lib/types/database";
+import { cn } from "@/lib/utils";
+import type { DateRange } from "react-day-picker";
 
 interface TaskDialogProps {
   open: boolean;
@@ -25,8 +31,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [estimatedHours, setEstimatedHours] = useState("");
   const [projectId, setProjectId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,8 +42,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setDescription(task.description ?? "");
       setStatus(task.status);
       setPriority(task.priority);
-      setStartDate(task.start_date ?? "");
-      setEndDate(task.end_date ?? "");
+      setDateRange(
+        task.start_date && task.end_date
+          ? { from: new Date(task.start_date + "T00:00:00"), to: new Date(task.end_date + "T00:00:00") }
+          : task.start_date
+            ? { from: new Date(task.start_date + "T00:00:00"), to: undefined }
+            : undefined
+      );
       setEstimatedHours(task.estimated_hours?.toString() ?? "");
       setProjectId(task.project_id);
     } else {
@@ -46,8 +56,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setDescription("");
       setStatus(defaultStatus ?? "todo");
       setPriority("medium");
-      setStartDate("");
-      setEndDate("");
+      setDateRange(undefined);
       setEstimatedHours("");
       setProjectId(projects?.[0]?.id ?? "");
     }
@@ -61,8 +70,8 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       description: description || null,
       status,
       priority,
-      start_date: startDate || null,
-      end_date: endDate || null,
+      start_date: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
+      end_date: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
       estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
       ...(projectId && { project_id: projectId }),
     });
@@ -127,15 +136,43 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-date">Start Date</Label>
-              <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="end-date">End Date</Label>
-              <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
+          <div className="space-y-2">
+            <Label>Date Range</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !dateRange && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    "Pick a date range"
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-2">
             <Label htmlFor="estimated-hours">Estimated Hours</Label>

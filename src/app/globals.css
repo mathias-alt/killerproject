@@ -128,3 +128,9 @@
     font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   }
 }
+
+/* Remove focus outlines on recharts SVG elements */
+.recharts-surface:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
+}

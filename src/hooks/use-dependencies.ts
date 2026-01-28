@@ -9,20 +9,39 @@ export function useDependencies(projectId?: string) {
   const supabase = createClient();
 
   const fetchDependencies = useCallback(async () => {
-    if (!projectId) {
-      // Fetch all dependencies
-      const { data } = await supabase
-        .from("task_dependencies")
-        .select("*");
-      setDependencies(data ?? []);
-    } else {
-      // Fetch dependencies for tasks in this project
-      const { data } = await supabase
-        .from("task_dependencies")
-        .select("*, task:tasks!task_dependencies_task_id_fkey(project_id)")
-        .eq("task.project_id", projectId);
-      // Filter nulls from join
-      setDependencies((data ?? []).filter((d: any) => d.task) as TaskDependency[]);
+    try {
+      if (!projectId) {
+        const { data, error } = await supabase
+          .from("task_dependencies")
+          .select("*");
+        if (error) {
+          console.warn("Failed to fetch dependencies:", error.message);
+          return;
+        }
+        setDependencies(data ?? []);
+      } else {
+        // Fetch all dependencies where either task is in this project
+        const { data: taskIds } = await supabase
+          .from("tasks")
+          .select("id")
+          .eq("project_id", projectId);
+
+        if (!taskIds?.length) return;
+
+        const ids = taskIds.map((t) => t.id);
+        const { data, error } = await supabase
+          .from("task_dependencies")
+          .select("*")
+          .or(`task_id.in.(${ids.join(",")}),depends_on_id.in.(${ids.join(",")})`);
+
+        if (error) {
+          console.warn("Failed to fetch dependencies:", error.message);
+          return;
+        }
+        setDependencies(data ?? []);
+      }
+    } catch {
+      // Table may not exist yet
     }
   }, [supabase, projectId]);
 

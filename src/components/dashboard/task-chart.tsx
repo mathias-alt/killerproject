@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import type { Project, TaskWithProject } from "@/lib/types/database";
 import { TASK_STATUS_LABELS, TASK_STATUSES } from "@/lib/types/database";
 
@@ -17,6 +17,26 @@ interface TaskChartProps {
   tasks: TaskWithProject[];
   projects: Project[];
 }
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
+      <p className="font-medium">{label}</p>
+      <p className="text-muted-foreground">{payload[0].value} tasks</p>
+    </div>
+  );
+};
+
+const PieTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
+      <p className="font-medium">{payload[0].name}</p>
+      <p className="text-muted-foreground">{payload[0].value} tasks</p>
+    </div>
+  );
+};
 
 export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
   const data = TASK_STATUSES.map((status) => ({
@@ -34,20 +54,28 @@ export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
       <CardContent>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="name" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "6px",
-                }}
+            <BarChart data={data} style={{ outline: "none" }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+              <XAxis
+                dataKey="name"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                stroke="currentColor"
+                opacity={0.5}
               />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              <YAxis
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+                stroke="currentColor"
+                opacity={0.5}
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "currentColor", opacity: 0.05 }} />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} style={{ outline: "none" }}>
                 {data.map((entry, index) => (
-                  <Cell key={index} fill={entry.fill} />
+                  <Cell key={index} fill={entry.fill} style={{ outline: "none" }} />
                 ))}
               </Bar>
             </BarChart>
@@ -76,7 +104,7 @@ export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
       <CardContent>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart style={{ outline: "none" }}>
               <Pie
                 data={data}
                 cx="50%"
@@ -85,18 +113,16 @@ export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
                 outerRadius={100}
                 paddingAngle={2}
                 dataKey="count"
-                label={(props) => `${props.name} (${props.value})`}
+                stroke="none"
+                style={{ outline: "none" }}
               >
                 {data.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
+                  <Cell key={index} fill={entry.color} style={{ outline: "none" }} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "6px",
-                }}
+              <Tooltip content={<PieTooltip />} />
+              <Legend
+                formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
               />
             </PieChart>
           </ResponsiveContainer>
