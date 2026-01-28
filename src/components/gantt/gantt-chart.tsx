@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback } from "react";
-import { addDays, subDays, differenceInDays, min, max, startOfDay } from "date-fns";
+import { addDays, subDays, differenceInDays, min, max, startOfDay, eachDayOfInterval } from "date-fns";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { GanttHeader, type ZoomLevel } from "./gantt-header";
+import { GanttHeader, HEADER_HEIGHT, type ZoomLevel } from "./gantt-header";
 import { GanttBar } from "./gantt-bar";
 import { GanttSidebar } from "./gantt-sidebar";
 import { TaskDialog } from "@/components/tasks/task-dialog";
-import { Link2, Unlink2 } from "lucide-react";
+import { Link2, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, TaskWithAssignee, TaskDependency } from "@/lib/types/database";
 
@@ -18,7 +18,7 @@ const ZOOM_CONFIG: Record<ZoomLevel, number> = {
   month: 8,
 };
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 40;
 
 interface GanttChartProps {
   tasks: TaskWithAssignee[];
@@ -40,6 +40,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
   const [linkSource, setLinkSource] = useState<string | null>(null);
 
   const dayWidth = ZOOM_CONFIG[zoom];
+  const headerHeight = HEADER_HEIGHT[zoom];
 
   const tasksWithDates = useMemo(
     () => tasks.filter((t) => t.start_date && t.end_date),
@@ -70,6 +71,9 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
 
   const today = startOfDay(new Date());
   const todayOffset = differenceInDays(today, timelineStart) * dayWidth;
+
+  // Get weekend columns for shading
+  const days = useMemo(() => eachDayOfInterval({ start: timelineStart, end: timelineEnd }), [timelineStart, timelineEnd]);
 
   // Get all tasks that depend on a given task (downstream dependents)
   const getDependents = useCallback((taskId: string): string[] => {
@@ -116,12 +120,9 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     }
 
     if (!linkSource) {
-      // First click: select source (the task that must finish first)
       setLinkSource(task.id);
     } else {
-      // Second click: select target (the dependent task)
       if (task.id !== linkSource) {
-        // Check if link already exists
         const exists = dependencies.some(
           (d) => d.depends_on_id === linkSource && d.task_id === task.id
         );
@@ -134,7 +135,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     }
   }, [linkMode, linkSource, onAddDependency, dependencies]);
 
-  // Compute dependency arrows
+  // Compute dependency arrows with right-angle routing
   const arrows = useMemo(() => {
     return dependencies
       .map((dep) => {
@@ -154,66 +155,65 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
         const x2 = toStart * dayWidth;
         const y2 = toIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-        return { x1, y1, x2, y2, id: dep.id };
+        // Right-angle path: horizontal from source, then vertical, then horizontal to target
+        const midX = x1 + 10; // Small horizontal offset from source
+
+        return { x1, y1, x2, y2, midX, id: dep.id };
       })
-      .filter(Boolean) as { x1: number; y1: number; x2: number; y2: number; id: string }[];
+      .filter(Boolean) as { x1: number; y1: number; x2: number; y2: number; midX: number; id: string }[];
   }, [dependencies, taskIndexMap, tasksWithDates, timelineStart, dayWidth]);
 
-  // Find the source task name for the link mode indicator
   const linkSourceTask = linkSource ? tasksWithDates.find((t) => t.id === linkSource) : null;
+
+  const zoomIn = () => {
+    if (zoom === "month") setZoom("week");
+    else if (zoom === "week") setZoom("day");
+  };
+
+  const zoomOut = () => {
+    if (zoom === "day") setZoom("week");
+    else if (zoom === "week") setZoom("month");
+  };
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full bg-background">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 p-2 border-b">
-          <span className="text-sm font-medium mr-2">Zoom:</span>
-          {(["day", "week", "month"] as ZoomLevel[]).map((z) => (
-            <Button
-              key={z}
-              variant={zoom === z ? "default" : "outline"}
-              size="sm"
-              onClick={() => setZoom(z)}
-            >
-              {z.charAt(0).toUpperCase() + z.slice(1)}
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={zoomOut} disabled={zoom === "month"}>
+              <ZoomOut className="h-4 w-4" />
             </Button>
-          ))}
-
-          <div className="ml-4 border-l pl-4 flex items-center gap-2">
-            {onAddDependency && (
-              <Button
-                variant={linkMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setLinkMode(!linkMode);
-                  setLinkSource(null);
-                }}
-              >
-                <Link2 className="h-4 w-4 mr-1" />
-                {linkMode ? "Cancel" : "Link Tasks"}
-              </Button>
-            )}
-            {onRemoveDependency && dependencies.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Remove the last dependency as a simple UX — or we could show a list
-                  // For now, we'll remove via clicking arrows (handled below)
-                }}
-                className="hidden"
-              >
-                <Unlink2 className="h-4 w-4 mr-1" />
-                Unlink
-              </Button>
-            )}
+            <div className="px-2 text-sm font-medium min-w-[60px] text-center">
+              {zoom.charAt(0).toUpperCase() + zoom.slice(1)}
+            </div>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={zoomIn} disabled={zoom === "day"}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
           </div>
+
+          <div className="h-6 w-px bg-border mx-2" />
+
+          {onAddDependency && (
+            <Button
+              variant={linkMode ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => {
+                setLinkMode(!linkMode);
+                setLinkSource(null);
+              }}
+            >
+              <Link2 className="h-4 w-4 mr-1.5" />
+              {linkMode ? "Cancel" : "Link Tasks"}
+            </Button>
+          )}
 
           <span className="ml-auto text-xs text-muted-foreground">
             {linkMode ? (
               linkSource ? (
                 <span className="text-primary font-medium">
-                  Now click the dependent task (the one that depends on &quot;{linkSourceTask?.title}&quot;)
+                  Click the dependent task (depends on &quot;{linkSourceTask?.title}&quot;)
                 </span>
               ) : (
                 <span className="text-primary font-medium">
@@ -232,6 +232,8 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
           <GanttSidebar
             tasks={tasksWithDates}
             rowHeight={ROW_HEIGHT}
+            headerHeight={headerHeight}
+            selectedTaskId={linkSource}
             onTaskClick={(t) => {
               if (linkMode) {
                 handleBarClick(t);
@@ -248,28 +250,44 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
               <GanttHeader startDate={timelineStart} endDate={timelineEnd} zoom={zoom} dayWidth={dayWidth} />
 
               <div className="relative">
+                {/* Weekend shading columns */}
+                {zoom === "day" && days.map((day, i) => {
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  if (!isWeekend) return null;
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="absolute top-0 bottom-0 bg-muted/30"
+                      style={{ left: i * dayWidth, width: dayWidth, height: tasksWithDates.length * ROW_HEIGHT }}
+                    />
+                  );
+                })}
+
                 {/* Dependency arrows */}
                 {arrows.length > 0 && (
                   <svg
-                    className="absolute top-0 left-0 z-5"
-                    style={{ width: timelineWidth, height: tasksWithDates.length * ROW_HEIGHT, pointerEvents: onRemoveDependency ? "auto" : "none" }}
+                    className="absolute top-0 left-0 z-[5] pointer-events-none"
+                    style={{ width: timelineWidth, height: tasksWithDates.length * ROW_HEIGHT }}
                   >
                     <defs>
-                      <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                        <polygon points="0 0, 8 3, 0 6" className="fill-muted-foreground" />
+                      <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                        <polygon points="0 0, 6 2.5, 0 5" className="fill-muted-foreground" />
                       </marker>
-                      <marker id="arrowhead-hover" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                        <polygon points="0 0, 8 3, 0 6" fill="#ef4444" />
+                      <marker id="arrowhead-hover" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                        <polygon points="0 0, 6 2.5, 0 5" fill="#ef4444" />
                       </marker>
                     </defs>
                     {arrows.map((a) => {
-                      const midX = (a.x1 + a.x2) / 2;
+                      // Right-angle path
+                      const path = a.y1 === a.y2
+                        ? `M ${a.x1} ${a.y1} L ${a.x2} ${a.y2}` // Same row: straight line
+                        : `M ${a.x1} ${a.y1} L ${a.midX} ${a.y1} L ${a.midX} ${a.y2} L ${a.x2} ${a.y2}`; // Different rows: right angles
+
                       return (
-                        <g key={a.id} className="group">
-                          {/* Invisible wider hit area for clicking */}
+                        <g key={a.id} className="group" style={{ pointerEvents: onRemoveDependency ? "auto" : "none" }}>
                           {onRemoveDependency && (
                             <path
-                              d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
+                              d={path}
                               strokeWidth={12}
                               fill="none"
                               stroke="transparent"
@@ -278,8 +296,8 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                             />
                           )}
                           <path
-                            d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
-                            className="stroke-muted-foreground group-hover:stroke-red-500 transition-colors pointer-events-none"
+                            d={path}
+                            className="stroke-muted-foreground group-hover:stroke-red-500 transition-colors"
                             strokeWidth={1.5}
                             fill="none"
                             markerEnd="url(#arrowhead)"
@@ -293,17 +311,18 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 {/* Today line */}
                 {todayOffset >= 0 && todayOffset <= timelineWidth && (
                   <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-                    style={{ left: todayOffset }}
+                    className="absolute top-0 w-0.5 bg-red-500 z-10"
+                    style={{ left: todayOffset, height: tasksWithDates.length * ROW_HEIGHT || 200 }}
                   />
                 )}
 
-                {/* Row backgrounds */}
-                {tasksWithDates.map((task) => (
+                {/* Task rows */}
+                {tasksWithDates.map((task, index) => (
                   <div
                     key={task.id}
                     className={cn(
                       "relative border-b",
+                      index % 2 === 0 ? "bg-background" : "bg-muted/10",
                       linkMode && linkSource === task.id && "bg-primary/10"
                     )}
                     style={{ height: ROW_HEIGHT }}
@@ -312,6 +331,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                       task={task}
                       timelineStart={timelineStart}
                       dayWidth={dayWidth}
+                      rowHeight={ROW_HEIGHT}
                       onClick={() => handleBarClick(task)}
                       onDragEnd={linkMode ? undefined : (newStart, newEnd) => {
                         handleDragEnd(task.id, newStart, newEnd);
@@ -324,7 +344,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 ))}
 
                 {tasksWithDates.length === 0 && (
-                  <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                  <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
                     No tasks with dates. Add start/end dates to tasks to see them here.
                   </div>
                 )}

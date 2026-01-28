@@ -1,6 +1,6 @@
 "use client";
 
-import { format, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInDays, isSameMonth } from "date-fns";
 
 export type ZoomLevel = "day" | "week" | "month";
 
@@ -12,20 +12,59 @@ interface GanttHeaderProps {
 }
 
 export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderProps) {
+  const days = eachDayOfInterval({ start: startDate, end: endDate });
+
+  // Group days by month for the top row
+  const monthGroups: { month: Date; days: number; width: number }[] = [];
+  let currentMonth: Date | null = null;
+  let currentCount = 0;
+
+  days.forEach((day, i) => {
+    if (!currentMonth || !isSameMonth(day, currentMonth)) {
+      if (currentMonth) {
+        monthGroups.push({ month: currentMonth, days: currentCount, width: currentCount * dayWidth });
+      }
+      currentMonth = startOfMonth(day);
+      currentCount = 1;
+    } else {
+      currentCount++;
+    }
+    if (i === days.length - 1) {
+      monthGroups.push({ month: currentMonth!, days: currentCount, width: currentCount * dayWidth });
+    }
+  });
+
   if (zoom === "day") {
-    const days = eachDayOfInterval({ start: startDate, end: endDate });
     return (
-      <div className="flex border-b bg-muted/30 sticky top-0 z-10">
-        {days.map((day) => (
-          <div
-            key={day.toISOString()}
-            className="shrink-0 border-r px-1 py-1 text-center text-xs text-muted-foreground"
-            style={{ width: dayWidth }}
-          >
-            <div>{format(day, "EEE")}</div>
-            <div className="font-medium text-foreground">{format(day, "d")}</div>
-          </div>
-        ))}
+      <div className="sticky top-0 z-10 bg-background">
+        {/* Top row: months */}
+        <div className="flex border-b bg-muted/40">
+          {monthGroups.map((group, i) => (
+            <div
+              key={i}
+              className="shrink-0 border-r px-2 py-1.5 text-xs font-semibold text-foreground"
+              style={{ width: group.width }}
+            >
+              {format(group.month, "MMMM yyyy")}
+            </div>
+          ))}
+        </div>
+        {/* Bottom row: days */}
+        <div className="flex border-b bg-muted/20">
+          {days.map((day) => {
+            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+            return (
+              <div
+                key={day.toISOString()}
+                className={`shrink-0 border-r py-1 text-center text-[10px] ${isWeekend ? "bg-muted/40 text-muted-foreground" : "text-muted-foreground"}`}
+                style={{ width: dayWidth }}
+              >
+                <div className="leading-tight">{format(day, "EEE")}</div>
+                <div className="font-medium text-foreground leading-tight">{format(day, "d")}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -33,47 +72,72 @@ export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderP
   if (zoom === "week") {
     const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
     return (
-      <div className="flex border-b bg-muted/30 sticky top-0 z-10">
-        {weeks.map((week) => {
-          const end = endOfWeek(week, { weekStartsOn: 1 });
-          const days = Math.min(
-            7,
-            Math.ceil((Math.min(end.getTime(), endDate.getTime()) - Math.max(week.getTime(), startDate.getTime())) / 86400000) + 1
-          );
-          return (
+      <div className="sticky top-0 z-10 bg-background">
+        {/* Top row: months */}
+        <div className="flex border-b bg-muted/40">
+          {monthGroups.map((group, i) => (
             <div
-              key={week.toISOString()}
-              className="shrink-0 border-r px-2 py-2 text-center text-xs"
-              style={{ width: days * dayWidth }}
+              key={i}
+              className="shrink-0 border-r px-2 py-1.5 text-xs font-semibold text-foreground"
+              style={{ width: group.width }}
             >
-              <div className="text-muted-foreground">{format(week, "MMM")}</div>
-              <div className="font-medium">{format(week, "d")} - {format(end, "d")}</div>
+              {format(group.month, "MMMM yyyy")}
             </div>
-          );
-        })}
+          ))}
+        </div>
+        {/* Bottom row: weeks */}
+        <div className="flex border-b bg-muted/20">
+          {weeks.map((week) => {
+            const end = endOfWeek(week, { weekStartsOn: 1 });
+            const actualStart = week < startDate ? startDate : week;
+            const actualEnd = end > endDate ? endDate : end;
+            const numDays = differenceInDays(actualEnd, actualStart) + 1;
+            return (
+              <div
+                key={week.toISOString()}
+                className="shrink-0 border-r px-1 py-1 text-center text-[10px] text-muted-foreground"
+                style={{ width: numDays * dayWidth }}
+              >
+                <div className="font-medium text-foreground">
+                  {format(actualStart, "MMM d")} - {format(actualEnd, "d")}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
 
-  // month
+  // Month zoom
   const months = eachMonthOfInterval({ start: startDate, end: endDate });
   return (
-    <div className="flex border-b bg-muted/30 sticky top-0 z-10">
-      {months.map((month) => {
-        const mEnd = endOfMonth(month);
-        const actualStart = month < startDate ? startDate : month;
-        const actualEnd = mEnd > endDate ? endDate : mEnd;
-        const days = Math.ceil((actualEnd.getTime() - actualStart.getTime()) / 86400000) + 1;
-        return (
-          <div
-            key={month.toISOString()}
-            className="shrink-0 border-r px-2 py-2 text-center text-xs"
-            style={{ width: days * dayWidth }}
-          >
-            <div className="font-medium">{format(month, "MMMM yyyy")}</div>
-          </div>
-        );
-      })}
+    <div className="sticky top-0 z-10 bg-background">
+      {/* Single row for months */}
+      <div className="flex border-b bg-muted/30">
+        {months.map((month) => {
+          const mEnd = endOfMonth(month);
+          const actualStart = month < startDate ? startDate : month;
+          const actualEnd = mEnd > endDate ? endDate : mEnd;
+          const numDays = differenceInDays(actualEnd, actualStart) + 1;
+          return (
+            <div
+              key={month.toISOString()}
+              className="shrink-0 border-r px-2 py-2 text-center text-xs font-semibold"
+              style={{ width: numDays * dayWidth }}
+            >
+              {format(month, "MMMM yyyy")}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
+
+// Export header height for use in other components
+export const HEADER_HEIGHT = {
+  day: 52,
+  week: 52,
+  month: 36,
+};

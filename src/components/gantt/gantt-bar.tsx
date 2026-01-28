@@ -2,29 +2,29 @@
 
 import { useRef, useState, useCallback } from "react";
 import { differenceInDays } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TaskWithAssignee } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 
-const statusColors: Record<string, string> = {
-  backlog: "bg-slate-400",
-  todo: "bg-blue-400",
-  in_progress: "bg-amber-400",
-  in_review: "bg-purple-400",
-  done: "bg-green-400",
+const statusColors: Record<string, { bg: string; progress: string }> = {
+  backlog: { bg: "bg-slate-400", progress: "bg-slate-500" },
+  todo: { bg: "bg-blue-400", progress: "bg-blue-500" },
+  in_progress: { bg: "bg-amber-400", progress: "bg-amber-500" },
+  in_review: { bg: "bg-purple-400", progress: "bg-purple-500" },
+  done: { bg: "bg-green-400", progress: "bg-green-500" },
 };
 
 interface GanttBarProps {
   task: TaskWithAssignee;
   timelineStart: Date;
   dayWidth: number;
+  rowHeight: number;
   onClick: () => void;
   onDragEnd?: (newStartDate: string, newEndDate: string) => void;
   onResizeEnd?: (newEndDate: string) => void;
 }
 
-export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, onResizeEnd }: GanttBarProps) {
+export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, onDragEnd, onResizeEnd }: GanttBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const didDrag = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -37,6 +37,18 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
   const durationDays = differenceInDays(end, start) + 1;
   const left = offsetDays * dayWidth;
   const width = durationDays * dayWidth;
+
+  // Calculate progress: if task is done, 100%. Otherwise, based on actual/estimated hours
+  let progress = 0;
+  if (task.status === "done") {
+    progress = 100;
+  } else if (task.actual_hours && task.estimated_hours && task.estimated_hours > 0) {
+    progress = Math.min(100, Math.round((task.actual_hours / task.estimated_hours) * 100));
+  }
+
+  const barHeight = rowHeight - 10; // Leave some padding
+  const barTop = 5;
+  const colors = statusColors[task.status] || statusColors.todo;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, mode: "move" | "resize") => {
@@ -97,27 +109,47 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
         <div
           ref={barRef}
           className={cn(
-            "absolute top-1 h-7 rounded-md cursor-pointer flex items-center px-2 text-xs text-white font-medium select-none",
-            statusColors[task.status],
-            isDragging && "opacity-80"
+            "absolute rounded cursor-pointer flex items-center overflow-hidden select-none shadow-sm",
+            colors.bg,
+            isDragging && "opacity-80 shadow-md"
           )}
-          style={{ left, width }}
+          style={{ left, width, top: barTop, height: barHeight }}
           onClick={() => { if (!didDrag.current) onClick(); }}
           onMouseDown={(e) => handleMouseDown(e, "move")}
         >
-          <span className="truncate">{task.title}</span>
+          {/* Progress fill */}
+          {progress > 0 && progress < 100 && (
+            <div
+              className={cn("absolute inset-y-0 left-0 opacity-60", colors.progress)}
+              style={{ width: `${progress}%` }}
+            />
+          )}
+
+          {/* Task label */}
+          <span className="relative z-10 px-2 text-xs text-white font-medium truncate">
+            {task.title}
+          </span>
+
           {/* Resize handle */}
           <div
-            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
+            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize hover:bg-black/10"
             onMouseDown={(e) => handleMouseDown(e, "resize")}
           />
         </div>
       </TooltipTrigger>
-      <TooltipContent>
-        <p>{task.title}</p>
-        <p className="text-xs text-muted-foreground">
-          {task.start_date} → {task.end_date}
-        </p>
+      <TooltipContent side="top" className="max-w-xs">
+        <div className="space-y-1">
+          <p className="font-medium">{task.title}</p>
+          <p className="text-xs text-muted-foreground">
+            {task.start_date} → {task.end_date}
+          </p>
+          {task.estimated_hours && (
+            <p className="text-xs text-muted-foreground">
+              {task.actual_hours ?? 0}h / {task.estimated_hours}h
+              {progress > 0 && ` (${progress}%)`}
+            </p>
+          )}
+        </div>
       </TooltipContent>
     </Tooltip>
   );
