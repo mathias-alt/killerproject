@@ -22,7 +22,7 @@ export function useProjects() {
     fetchProjects();
   }, [fetchProjects]);
 
-  async function createProject(project: Pick<Project, "name" | "description" | "color">) {
+  async function createProject(project: Pick<Project, "name" | "description" | "color" | "start_date" | "end_date">) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
@@ -36,7 +36,7 @@ export function useProjects() {
     return { data, error };
   }
 
-  async function updateProject(id: string, updates: Partial<Pick<Project, "name" | "description" | "color">>) {
+  async function updateProject(id: string, updates: Partial<Pick<Project, "name" | "description" | "color" | "start_date" | "end_date">>) {
     const { data, error } = await supabase
       .from("projects")
       .update({ ...updates, updated_at: new Date().toISOString() })

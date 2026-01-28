@@ -27,6 +27,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState("");
   const [projectId, setProjectId] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +39,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setPriority(task.priority);
       setStartDate(task.start_date ?? "");
       setEndDate(task.end_date ?? "");
+      setEstimatedHours(task.estimated_hours?.toString() ?? "");
       setProjectId(task.project_id);
     } else {
       setTitle("");
@@ -46,6 +48,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setPriority("medium");
       setStartDate("");
       setEndDate("");
+      setEstimatedHours("");
       setProjectId(projects?.[0]?.id ?? "");
     }
   }, [task, defaultStatus, open, projects]);
@@ -60,6 +63,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       priority,
       start_date: startDate || null,
       end_date: endDate || null,
+      estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
       ...(projectId && { project_id: projectId }),
     });
     setLoading(false);
@@ -132,6 +136,10 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
               <Label htmlFor="end-date">End Date</Label>
               <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="estimated-hours">Estimated Hours</Label>
+            <Input id="estimated-hours" type="number" min="0" step="0.5" placeholder="e.g. 4" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
           </div>
           <DialogFooter className="flex justify-between">
             {task && onDelete && (

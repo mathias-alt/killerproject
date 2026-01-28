@@ -29,15 +29,15 @@ const navItems = [
   { href: "/dashboard/gantt", label: "Gantt Chart", icon: GanttChart },
 ];
 
-export function Sidebar() {
+export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { projects } = useProjects();
   const supabase = createClient();
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const { sidebarCollapsed, setSidebarCollapsed, sidebarStyle } = useLayout();
+  const { sidebarCollapsed, setSidebarCollapsed, sidebarStyle, setLayoutStyle } = useLayout();
 
-  const collapsed = sidebarCollapsed;
+  const collapsed = forceCollapsed || sidebarCollapsed;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -49,10 +49,14 @@ export function Sidebar() {
     <TooltipProvider delayDuration={0}>
       <div
         className={cn(
-          "flex h-full flex-col border-r bg-background transition-all duration-300",
+          "flex h-full flex-col transition-all duration-300",
           collapsed ? "w-16" : "w-64",
-          sidebarStyle === "floating" && "m-2 rounded-xl border shadow-lg",
-          sidebarStyle === "inset" && "m-2 rounded-xl bg-muted/30"
+          // Sidebar style: plain border (default)
+          sidebarStyle === "sidebar" && "border-r bg-background",
+          // Floating style: detached with shadow and border
+          sidebarStyle === "floating" && "rounded-xl border bg-background shadow-lg",
+          // Inset style: subtle background, rounded
+          sidebarStyle === "inset" && "rounded-xl bg-muted/40"
         )}
       >
         {/* Logo */}
@@ -188,7 +192,7 @@ export function Sidebar() {
                 variant="ghost"
                 size="icon"
                 className="w-full"
-                onClick={() => setSidebarCollapsed(false)}
+                onClick={() => { setSidebarCollapsed(false); setLayoutStyle("default"); }}
               >
                 <ChevronsRight className="h-4 w-4" />
               </Button>
@@ -206,7 +210,7 @@ export function Sidebar() {
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3 text-sm text-muted-foreground hover:text-foreground"
-                onClick={() => setSidebarCollapsed(true)}
+                onClick={() => { setSidebarCollapsed(true); setLayoutStyle("compact"); }}
               >
                 <ChevronsLeft className="h-4 w-4" />
                 Collapse

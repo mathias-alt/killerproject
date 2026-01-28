@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderOpen, ListTodo, Clock, CheckCircle2 } from "lucide-react";
+import { FolderOpen, ListTodo, Clock, CheckCircle2, Timer } from "lucide-react";
 import type { Project, TaskWithProject } from "@/lib/types/database";
 
 interface StatsCardsProps {
@@ -14,6 +14,7 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
   const totalTasks = tasks.length;
   const inProgress = tasks.filter((t) => t.status === "in_progress").length;
   const completed = tasks.filter((t) => t.status === "done").length;
+  const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimated_hours ?? 0), 0);
 
   const stats = [
     {
@@ -40,10 +41,16 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
       description: `${Math.round((completed / (totalTasks || 1)) * 100)}% completion rate`,
       icon: CheckCircle2,
     },
+    {
+      title: "Estimated Hours",
+      value: totalEstimatedHours,
+      description: `${totalEstimatedHours}h total across all tasks`,
+      icon: Timer,
+    },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (

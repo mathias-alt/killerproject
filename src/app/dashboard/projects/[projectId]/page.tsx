@@ -3,6 +3,7 @@
 import { use } from "react";
 import { useTasks } from "@/hooks/use-tasks";
 import { useRealtimeTasks } from "@/hooks/use-realtime";
+import { useDependencies } from "@/hooks/use-dependencies";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { GanttChart } from "@/components/gantt/gantt-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +12,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
   const { projectId } = use(params);
   const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch } =
     useTasks(projectId);
+  const { dependencies } = useDependencies(projectId);
 
   useRealtimeTasks(projectId, setTasks, refetch);
 
@@ -39,6 +41,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
         <TabsContent value="gantt" className="flex-1 mt-0">
           <GanttChart
             tasks={tasks}
+            dependencies={dependencies}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
           />

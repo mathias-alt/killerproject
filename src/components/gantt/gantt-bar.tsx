@@ -26,6 +26,7 @@ interface GanttBarProps {
 
 export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, onResizeEnd }: GanttBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
+  const didDrag = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
   if (!task.start_date || !task.end_date) return null;
@@ -40,6 +41,8 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, mode: "move" | "resize") => {
       e.stopPropagation();
+      e.preventDefault();
+      didDrag.current = false;
       setIsDragging(true);
       const startX = e.clientX;
       const origLeft = left;
@@ -47,6 +50,7 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
 
       function onMouseMove(ev: MouseEvent) {
         const dx = ev.clientX - startX;
+        if (Math.abs(dx) > 3) didDrag.current = true;
         const daysDelta = Math.round(dx / dayWidth);
         if (mode === "move" && barRef.current) {
           barRef.current.style.left = `${origLeft + daysDelta * dayWidth}px`;
@@ -96,7 +100,7 @@ export function GanttBar({ task, timelineStart, dayWidth, onClick, onDragEnd, on
             isDragging && "opacity-80"
           )}
           style={{ left, width }}
-          onClick={onClick}
+          onClick={() => { if (!didDrag.current) onClick(); }}
           onMouseDown={(e) => handleMouseDown(e, "move")}
         >
           <span className="truncate">{task.title}</span>

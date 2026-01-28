@@ -2,10 +2,12 @@
 
 import { useAllTasks } from "@/hooks/use-all-tasks";
 import { useRealtimeAllTasks } from "@/hooks/use-realtime";
+import { useDependencies } from "@/hooks/use-dependencies";
 import { GanttChart } from "@/components/gantt/gantt-chart";
 
 export default function GanttPage() {
   const { tasks, setTasks, loading, updateTask, deleteTask, refetch } = useAllTasks();
+  const { dependencies } = useDependencies();
 
   useRealtimeAllTasks(setTasks, refetch);
 
@@ -14,6 +16,6 @@ export default function GanttPage() {
   }
 
   return (
-    <GanttChart tasks={tasks} onUpdateTask={updateTask} onDeleteTask={deleteTask} />
+    <GanttChart tasks={tasks} dependencies={dependencies} onUpdateTask={updateTask} onDeleteTask={deleteTask} />
   );
 }

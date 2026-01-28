@@ -59,11 +59,13 @@ export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
 }
 
 export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
-  const data = projects.map((project) => ({
-    name: project.name,
-    count: tasks.filter((t) => t.project_id === project.id).length,
-    color: project.color,
-  }));
+  const data = projects
+    .map((project) => ({
+      name: project.name,
+      count: tasks.filter((t) => t.project_id === project.id).length,
+      color: project.color,
+    }))
+    .filter((d) => d.count > 0);
 
   return (
     <Card className="col-span-3">

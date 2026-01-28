@@ -14,6 +14,8 @@ export interface Project {
   description: string | null;
   color: string;
   owner_id: string;
+  start_date: string | null;
+  end_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +30,7 @@ export interface Task {
   assignee_id: string | null;
   start_date: string | null;
   end_date: string | null;
+  estimated_hours: number | null;
   order: number;
   parent_task_id: string | null;
   created_at: string;
@@ -40,6 +43,13 @@ export interface TaskWithAssignee extends Task {
 
 export interface TaskWithProject extends TaskWithAssignee {
   project: Project | null;
+}
+
+export interface TaskDependency {
+  id: string;
+  task_id: string;
+  depends_on_id: string;
+  created_at: string;
 }
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
