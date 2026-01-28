@@ -22,12 +22,29 @@ interface GanttBarProps {
   onClick: () => void;
   onDragEnd?: (newStartDate: string, newEndDate: string) => void;
   onResizeEnd?: (newEndDate: string) => void;
+  onDependencyDragStart?: (taskId: string, side: "start" | "end") => void;
+  onDependencyDragEnd?: (taskId: string) => void;
+  isDependencyDragging?: boolean;
+  isValidDropTarget?: boolean;
 }
 
-export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, onDragEnd, onResizeEnd }: GanttBarProps) {
+export function GanttBar({
+  task,
+  timelineStart,
+  dayWidth,
+  rowHeight,
+  onClick,
+  onDragEnd,
+  onResizeEnd,
+  onDependencyDragStart,
+  onDependencyDragEnd,
+  isDependencyDragging,
+  isValidDropTarget,
+}: GanttBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const didDrag = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   if (!task.start_date || !task.end_date) return null;
 
@@ -38,7 +55,7 @@ export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, on
   const left = offsetDays * dayWidth;
   const width = durationDays * dayWidth;
 
-  // Calculate progress: if task is done, 100%. Otherwise, based on actual/estimated hours
+  // Calculate progress
   let progress = 0;
   if (task.status === "done") {
     progress = 100;
@@ -46,7 +63,7 @@ export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, on
     progress = Math.min(100, Math.round((task.actual_hours / task.estimated_hours) * 100));
   }
 
-  const barHeight = rowHeight - 10; // Leave some padding
+  const barHeight = rowHeight - 10;
   const barTop = 5;
   const colors = statusColors[task.status] || statusColors.todo;
 
@@ -103,25 +120,56 @@ export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, on
     [dayWidth, left, width, start, end, onDragEnd, onResizeEnd]
   );
 
+  const handleDependencyHandleMouseDown = useCallback(
+    (e: React.MouseEvent, side: "start" | "end") => {
+      e.stopPropagation();
+      e.preventDefault();
+      onDependencyDragStart?.(task.id, side);
+    },
+    [task.id, onDependencyDragStart]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (isDependencyDragging && isValidDropTarget) {
+      onDependencyDragEnd?.(task.id);
+    }
+  }, [isDependencyDragging, isValidDropTarget, task.id, onDependencyDragEnd]);
+
+  const showHandles = isHovered || isDependencyDragging;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
           ref={barRef}
           className={cn(
-            "absolute rounded cursor-pointer flex items-center overflow-hidden select-none shadow-sm",
+            "absolute rounded cursor-pointer flex items-center overflow-visible select-none shadow-sm transition-shadow",
             colors.bg,
-            isDragging && "opacity-80 shadow-md"
+            isDragging && "opacity-80 shadow-md",
+            isDependencyDragging && isValidDropTarget && "ring-2 ring-primary ring-offset-1",
+            isDependencyDragging && !isValidDropTarget && "opacity-50"
           )}
           style={{ left, width, top: barTop, height: barHeight }}
           onClick={() => { if (!didDrag.current) onClick(); }}
           onMouseDown={(e) => handleMouseDown(e, "move")}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onMouseUp={handleMouseUp}
         >
           {/* Progress fill */}
           {progress > 0 && progress < 100 && (
             <div
-              className={cn("absolute inset-y-0 left-0 opacity-60", colors.progress)}
+              className={cn("absolute inset-y-0 left-0 rounded-l opacity-60", colors.progress)}
               style={{ width: `${progress}%` }}
+            />
+          )}
+
+          {/* Left dependency handle (for incoming connections) */}
+          {showHandles && onDependencyDragStart && (
+            <div
+              className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background border-2 border-muted-foreground rounded-full cursor-crosshair hover:border-primary hover:bg-primary/20 z-20 transition-colors"
+              onMouseDown={(e) => handleDependencyHandleMouseDown(e, "start")}
+              title="Drag to create dependency"
             />
           )}
 
@@ -130,11 +178,22 @@ export function GanttBar({ task, timelineStart, dayWidth, rowHeight, onClick, on
             {task.title}
           </span>
 
+          {/* Right dependency handle (for outgoing connections) */}
+          {showHandles && onDependencyDragStart && (
+            <div
+              className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background border-2 border-muted-foreground rounded-full cursor-crosshair hover:border-primary hover:bg-primary/20 z-20 transition-colors"
+              onMouseDown={(e) => handleDependencyHandleMouseDown(e, "end")}
+              title="Drag to create dependency"
+            />
+          )}
+
           {/* Resize handle */}
-          <div
-            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize hover:bg-black/10"
-            onMouseDown={(e) => handleMouseDown(e, "resize")}
-          />
+          {onResizeEnd && (
+            <div
+              className="absolute right-0 top-0 h-full w-2 cursor-ew-resize hover:bg-black/10 z-10"
+              onMouseDown={(e) => handleMouseDown(e, "resize")}
+            />
+          )}
         </div>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { addDays, subDays, differenceInDays, min, max, startOfDay, eachDayOfInterval } from "date-fns";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { GanttHeader, HEADER_HEIGHT, type ZoomLevel } from "./gantt-header";
 import { GanttBar } from "./gantt-bar";
 import { GanttSidebar } from "./gantt-sidebar";
 import { TaskDialog } from "@/components/tasks/task-dialog";
-import { Link2, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, TaskWithAssignee, TaskDependency } from "@/lib/types/database";
 
@@ -34,10 +34,14 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
 
-  // Link mode state
-  const [linkMode, setLinkMode] = useState(false);
-  const [linkSource, setLinkSource] = useState<string | null>(null);
+  // Dependency drag state
+  const [dependencyDrag, setDependencyDrag] = useState<{
+    sourceTaskId: string;
+    sourceSide: "start" | "end";
+    mousePos: { x: number; y: number };
+  } | null>(null);
 
   const dayWidth = ZOOM_CONFIG[zoom];
   const headerHeight = HEADER_HEIGHT[zoom];
@@ -72,10 +76,9 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
   const today = startOfDay(new Date());
   const todayOffset = differenceInDays(today, timelineStart) * dayWidth;
 
-  // Get weekend columns for shading
   const days = useMemo(() => eachDayOfInterval({ start: timelineStart, end: timelineEnd }), [timelineStart, timelineEnd]);
 
-  // Get all tasks that depend on a given task (downstream dependents)
+  // Get all tasks that depend on a given task
   const getDependents = useCallback((taskId: string): string[] => {
     return dependencies
       .filter((d) => d.depends_on_id === taskId)
@@ -111,29 +114,81 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     }
   }, [tasksWithDates, onUpdateTask, getDependents]);
 
-  // Handle bar click in link mode
-  const handleBarClick = useCallback((task: TaskWithAssignee) => {
-    if (!linkMode || !onAddDependency) {
-      setSelectedTask(task);
-      setEditDialogOpen(true);
+  // Handle dependency drag start
+  const handleDependencyDragStart = useCallback((taskId: string, side: "start" | "end") => {
+    if (!onAddDependency) return;
+    setDependencyDrag({
+      sourceTaskId: taskId,
+      sourceSide: side,
+      mousePos: { x: 0, y: 0 },
+    });
+  }, [onAddDependency]);
+
+  // Handle dependency drag end (drop on target)
+  const handleDependencyDragEnd = useCallback((targetTaskId: string) => {
+    if (!dependencyDrag || !onAddDependency) return;
+
+    const { sourceTaskId, sourceSide } = dependencyDrag;
+
+    // Don't allow self-connections
+    if (sourceTaskId === targetTaskId) {
+      setDependencyDrag(null);
       return;
     }
 
-    if (!linkSource) {
-      setLinkSource(task.id);
-    } else {
-      if (task.id !== linkSource) {
-        const exists = dependencies.some(
-          (d) => d.depends_on_id === linkSource && d.task_id === task.id
-        );
-        if (!exists) {
-          onAddDependency(task.id, linkSource);
-        }
+    // Check if dependency already exists
+    const exists = dependencies.some(
+      (d) =>
+        (d.depends_on_id === sourceTaskId && d.task_id === targetTaskId) ||
+        (d.depends_on_id === targetTaskId && d.task_id === sourceTaskId)
+    );
+
+    if (!exists) {
+      // If dragging from end of source, source must finish before target starts
+      // If dragging from start of source, target must finish before source starts
+      if (sourceSide === "end") {
+        onAddDependency(targetTaskId, sourceTaskId); // target depends on source
+      } else {
+        onAddDependency(sourceTaskId, targetTaskId); // source depends on target
       }
-      setLinkSource(null);
-      setLinkMode(false);
     }
-  }, [linkMode, linkSource, onAddDependency, dependencies]);
+
+    setDependencyDrag(null);
+  }, [dependencyDrag, onAddDependency, dependencies]);
+
+  // Track mouse position during drag
+  useEffect(() => {
+    if (!dependencyDrag) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (chartRef.current) {
+        const rect = chartRef.current.getBoundingClientRect();
+        setDependencyDrag((prev) =>
+          prev
+            ? {
+                ...prev,
+                mousePos: {
+                  x: e.clientX - rect.left + (scrollRef.current?.scrollLeft || 0),
+                  y: e.clientY - rect.top + (scrollRef.current?.scrollTop || 0),
+                },
+              }
+            : null
+        );
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDependencyDrag(null);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dependencyDrag]);
 
   // Compute dependency arrows with right-angle routing
   const arrows = useMemo(() => {
@@ -155,15 +210,33 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
         const x2 = toStart * dayWidth;
         const y2 = toIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-        // Right-angle path: horizontal from source, then vertical, then horizontal to target
-        const midX = x1 + 10; // Small horizontal offset from source
+        const midX = x1 + 10;
 
         return { x1, y1, x2, y2, midX, id: dep.id };
       })
       .filter(Boolean) as { x1: number; y1: number; x2: number; y2: number; midX: number; id: string }[];
   }, [dependencies, taskIndexMap, tasksWithDates, timelineStart, dayWidth]);
 
-  const linkSourceTask = linkSource ? tasksWithDates.find((t) => t.id === linkSource) : null;
+  // Compute drag line
+  const dragLine = useMemo(() => {
+    if (!dependencyDrag) return null;
+
+    const sourceIdx = taskIndexMap.get(dependencyDrag.sourceTaskId);
+    if (sourceIdx === undefined) return null;
+
+    const sourceTask = tasksWithDates[sourceIdx];
+    if (!sourceTask.start_date || !sourceTask.end_date) return null;
+
+    const sourceStart = differenceInDays(new Date(sourceTask.start_date), timelineStart);
+    const sourceEnd = differenceInDays(new Date(sourceTask.end_date), timelineStart) + 1;
+
+    const x1 = dependencyDrag.sourceSide === "end" ? sourceEnd * dayWidth : sourceStart * dayWidth;
+    const y1 = sourceIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+    const x2 = dependencyDrag.mousePos.x;
+    const y2 = dependencyDrag.mousePos.y - headerHeight;
+
+    return { x1, y1, x2, y2 };
+  }, [dependencyDrag, taskIndexMap, tasksWithDates, timelineStart, dayWidth, headerHeight]);
 
   const zoomIn = () => {
     if (zoom === "month") setZoom("week");
@@ -194,59 +267,39 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
 
           <div className="h-6 w-px bg-border mx-2" />
 
-          {onAddDependency && (
-            <Button
-              variant={linkMode ? "default" : "outline"}
-              size="sm"
-              className="h-8"
-              onClick={() => {
-                setLinkMode(!linkMode);
-                setLinkSource(null);
-              }}
-            >
-              <Link2 className="h-4 w-4 mr-1.5" />
-              {linkMode ? "Cancel" : "Link Tasks"}
-            </Button>
-          )}
-
-          <span className="ml-auto text-xs text-muted-foreground">
-            {linkMode ? (
-              linkSource ? (
-                <span className="text-primary font-medium">
-                  Click the dependent task (depends on &quot;{linkSourceTask?.title}&quot;)
-                </span>
-              ) : (
-                <span className="text-primary font-medium">
-                  Click the task that must finish first
-                </span>
-              )
+          <span className="text-xs text-muted-foreground">
+            {dependencyDrag ? (
+              <span className="text-primary font-medium">
+                Drop on a task to create dependency
+              </span>
             ) : (
-              `${tasksWithDates.length} of ${tasks.length} tasks with dates`
+              <>
+                {tasksWithDates.length} of {tasks.length} tasks with dates
+                {onAddDependency && (
+                  <span className="ml-2 text-muted-foreground/70">• Drag between task handles to link</span>
+                )}
+              </>
             )}
           </span>
         </div>
 
         {/* Chart body */}
-        <div className={cn("flex flex-1 overflow-hidden", linkMode && "cursor-crosshair")}>
+        <div className={cn("flex flex-1 overflow-hidden", dependencyDrag && "cursor-crosshair")}>
           {/* Sidebar */}
           <GanttSidebar
             tasks={tasksWithDates}
             rowHeight={ROW_HEIGHT}
             headerHeight={headerHeight}
-            selectedTaskId={linkSource}
+            selectedTaskId={dependencyDrag?.sourceTaskId}
             onTaskClick={(t) => {
-              if (linkMode) {
-                handleBarClick(t);
-              } else {
-                setSelectedTask(t);
-                setEditDialogOpen(true);
-              }
+              setSelectedTask(t);
+              setEditDialogOpen(true);
             }}
           />
 
           {/* Timeline */}
           <div className="flex-1 overflow-auto" ref={scrollRef}>
-            <div style={{ width: timelineWidth, minHeight: "100%" }}>
+            <div ref={chartRef} style={{ width: timelineWidth, minHeight: "100%" }}>
               <GanttHeader startDate={timelineStart} endDate={timelineEnd} zoom={zoom} dayWidth={dayWidth} />
 
               <div className="relative">
@@ -264,49 +317,60 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                 })}
 
                 {/* Dependency arrows */}
-                {arrows.length > 0 && (
-                  <svg
-                    className="absolute top-0 left-0 z-[5] pointer-events-none"
-                    style={{ width: timelineWidth, height: tasksWithDates.length * ROW_HEIGHT }}
-                  >
-                    <defs>
-                      <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
-                        <polygon points="0 0, 6 2.5, 0 5" className="fill-muted-foreground" />
-                      </marker>
-                      <marker id="arrowhead-hover" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
-                        <polygon points="0 0, 6 2.5, 0 5" fill="#ef4444" />
-                      </marker>
-                    </defs>
-                    {arrows.map((a) => {
-                      // Right-angle path
-                      const path = a.y1 === a.y2
-                        ? `M ${a.x1} ${a.y1} L ${a.x2} ${a.y2}` // Same row: straight line
-                        : `M ${a.x1} ${a.y1} L ${a.midX} ${a.y1} L ${a.midX} ${a.y2} L ${a.x2} ${a.y2}`; // Different rows: right angles
+                <svg
+                  className="absolute top-0 left-0 z-[5] pointer-events-none"
+                  style={{ width: timelineWidth, height: Math.max(tasksWithDates.length * ROW_HEIGHT, 200) }}
+                >
+                  <defs>
+                    <marker id="arrowhead" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                      <polygon points="0 0, 6 2.5, 0 5" className="fill-muted-foreground" />
+                    </marker>
+                    <marker id="arrowhead-drag" markerWidth="6" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                      <polygon points="0 0, 6 2.5, 0 5" className="fill-primary" />
+                    </marker>
+                  </defs>
 
-                      return (
-                        <g key={a.id} className="group" style={{ pointerEvents: onRemoveDependency ? "auto" : "none" }}>
-                          {onRemoveDependency && (
-                            <path
-                              d={path}
-                              strokeWidth={12}
-                              fill="none"
-                              stroke="transparent"
-                              className="cursor-pointer"
-                              onClick={() => onRemoveDependency(a.id)}
-                            />
-                          )}
+                  {/* Existing dependency arrows */}
+                  {arrows.map((a) => {
+                    const path = a.y1 === a.y2
+                      ? `M ${a.x1} ${a.y1} L ${a.x2} ${a.y2}`
+                      : `M ${a.x1} ${a.y1} L ${a.midX} ${a.y1} L ${a.midX} ${a.y2} L ${a.x2} ${a.y2}`;
+
+                    return (
+                      <g key={a.id} className="group" style={{ pointerEvents: onRemoveDependency ? "auto" : "none" }}>
+                        {onRemoveDependency && (
                           <path
                             d={path}
-                            className="stroke-muted-foreground group-hover:stroke-red-500 transition-colors"
-                            strokeWidth={1.5}
+                            strokeWidth={12}
                             fill="none"
-                            markerEnd="url(#arrowhead)"
+                            stroke="transparent"
+                            className="cursor-pointer"
+                            onClick={() => onRemoveDependency(a.id)}
                           />
-                        </g>
-                      );
-                    })}
-                  </svg>
-                )}
+                        )}
+                        <path
+                          d={path}
+                          className="stroke-muted-foreground group-hover:stroke-red-500 transition-colors"
+                          strokeWidth={1.5}
+                          fill="none"
+                          markerEnd="url(#arrowhead)"
+                        />
+                      </g>
+                    );
+                  })}
+
+                  {/* Drag line */}
+                  {dragLine && (
+                    <path
+                      d={`M ${dragLine.x1} ${dragLine.y1} L ${dragLine.x2} ${dragLine.y2}`}
+                      className="stroke-primary"
+                      strokeWidth={2}
+                      strokeDasharray="5,5"
+                      fill="none"
+                      markerEnd="url(#arrowhead-drag)"
+                    />
+                  )}
+                </svg>
 
                 {/* Today line */}
                 {todayOffset >= 0 && todayOffset <= timelineWidth && (
@@ -323,7 +387,7 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                     className={cn(
                       "relative border-b",
                       index % 2 === 0 ? "bg-background" : "bg-muted/10",
-                      linkMode && linkSource === task.id && "bg-primary/10"
+                      dependencyDrag?.sourceTaskId === task.id && "bg-primary/10"
                     )}
                     style={{ height: ROW_HEIGHT }}
                   >
@@ -332,13 +396,20 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
                       timelineStart={timelineStart}
                       dayWidth={dayWidth}
                       rowHeight={ROW_HEIGHT}
-                      onClick={() => handleBarClick(task)}
-                      onDragEnd={linkMode ? undefined : (newStart, newEnd) => {
+                      onClick={() => {
+                        setSelectedTask(task);
+                        setEditDialogOpen(true);
+                      }}
+                      onDragEnd={(newStart, newEnd) => {
                         handleDragEnd(task.id, newStart, newEnd);
                       }}
-                      onResizeEnd={linkMode ? undefined : (newEnd) => {
+                      onResizeEnd={(newEnd) => {
                         onUpdateTask(task.id, { end_date: newEnd });
                       }}
+                      onDependencyDragStart={onAddDependency ? handleDependencyDragStart : undefined}
+                      onDependencyDragEnd={onAddDependency ? handleDependencyDragEnd : undefined}
+                      isDependencyDragging={!!dependencyDrag}
+                      isValidDropTarget={dependencyDrag ? dependencyDrag.sourceTaskId !== task.id : false}
                     />
                   </div>
                 ))}
