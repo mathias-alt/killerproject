@@ -35,6 +35,7 @@ create table public.tasks (
   start_date date,
   end_date date,
   estimated_hours numeric,
+  actual_hours numeric,
   "order" int not null default 0,
   parent_task_id uuid references public.tasks(id) on delete set null,
   created_at timestamptz default now() not null,

@@ -31,6 +31,7 @@ export interface Task {
   start_date: string | null;
   end_date: string | null;
   estimated_hours: number | null;
+  actual_hours: number | null;
   order: number;
   parent_task_id: string | null;
   created_at: string;

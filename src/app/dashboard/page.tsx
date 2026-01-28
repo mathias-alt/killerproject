@@ -3,7 +3,7 @@
 import { useProjects } from "@/hooks/use-projects";
 import { useAllTasks } from "@/hooks/use-all-tasks";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { TaskStatusChart, TasksByProjectChart } from "@/components/dashboard/task-chart";
+import { TaskStatusChart, TasksByProjectChart, HoursByMonthChart, HoursByProjectChart } from "@/components/dashboard/task-chart";
 
 export default function DashboardPage() {
   const { projects, loading: projectsLoading } = useProjects();
@@ -19,6 +19,10 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-7">
         <TaskStatusChart tasks={tasks} />
         <TasksByProjectChart tasks={tasks} projects={projects} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-7">
+        <HoursByMonthChart tasks={tasks} />
+        <HoursByProjectChart tasks={tasks} projects={projects} />
       </div>
     </div>
   );

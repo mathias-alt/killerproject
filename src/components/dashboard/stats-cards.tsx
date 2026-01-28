@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderOpen, ListTodo, Clock, CheckCircle2, Timer } from "lucide-react";
+import { FolderOpen, ListTodo, Clock, CheckCircle2, Timer, Hourglass } from "lucide-react";
 import type { Project, TaskWithProject } from "@/lib/types/database";
 
 interface StatsCardsProps {
@@ -15,6 +15,10 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
   const inProgress = tasks.filter((t) => t.status === "in_progress").length;
   const completed = tasks.filter((t) => t.status === "done").length;
   const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimated_hours ?? 0), 0);
+  const totalActualHours = tasks.reduce((sum, t) => sum + (t.actual_hours ?? 0), 0);
+  const remainingHours = tasks
+    .filter((t) => t.status !== "done")
+    .reduce((sum, t) => sum + (t.estimated_hours ?? 0), 0);
 
   const stats = [
     {
@@ -26,7 +30,7 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
     {
       title: "Total Tasks",
       value: totalTasks,
-      description: `Across all projects`,
+      description: `${completed} completed`,
       icon: ListTodo,
     },
     {
@@ -36,21 +40,27 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
       icon: Clock,
     },
     {
-      title: "Completed",
-      value: completed,
-      description: `${Math.round((completed / (totalTasks || 1)) * 100)}% completion rate`,
+      title: "Estimated Hours",
+      value: `${totalEstimatedHours}h`,
+      description: `Across all tasks`,
+      icon: Timer,
+    },
+    {
+      title: "Completed Hours",
+      value: `${totalActualHours}h`,
+      description: `${completed} tasks done`,
       icon: CheckCircle2,
     },
     {
-      title: "Estimated Hours",
-      value: totalEstimatedHours,
-      description: `${totalEstimatedHours}h total across all tasks`,
-      icon: Timer,
+      title: "Remaining Hours",
+      value: `${remainingHours}h`,
+      description: `${totalTasks - completed} tasks left`,
+      icon: Hourglass,
     },
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (

@@ -33,6 +33,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [estimatedHours, setEstimatedHours] = useState("");
+  const [actualHours, setActualHours] = useState("");
   const [projectId, setProjectId] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -50,6 +51,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
             : undefined
       );
       setEstimatedHours(task.estimated_hours?.toString() ?? "");
+      setActualHours(task.actual_hours?.toString() ?? "");
       setProjectId(task.project_id);
     } else {
       setTitle("");
@@ -58,6 +60,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setPriority("medium");
       setDateRange(undefined);
       setEstimatedHours("");
+      setActualHours("");
       setProjectId(projects?.[0]?.id ?? "");
     }
   }, [task, defaultStatus, open, projects]);
@@ -73,6 +76,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       start_date: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
       end_date: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
       estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
+      actual_hours: actualHours ? parseFloat(actualHours) : null,
       ...(projectId && { project_id: projectId }),
     });
     setLoading(false);
@@ -115,7 +119,13 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
+              <Select value={status} onValueChange={(v) => {
+                const newStatus = v as TaskStatus;
+                setStatus(newStatus);
+                if (newStatus === "done" && !actualHours && estimatedHours) {
+                  setActualHours(estimatedHours);
+                }
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TASK_STATUSES.map((s) => (
@@ -174,9 +184,15 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
               </PopoverContent>
             </Popover>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="estimated-hours">Estimated Hours</Label>
-            <Input id="estimated-hours" type="number" min="0" step="0.5" placeholder="e.g. 4" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="estimated-hours">Estimated Hours</Label>
+              <Input id="estimated-hours" type="number" min="0" step="0.5" placeholder="e.g. 4" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="actual-hours">Actual Hours</Label>
+              <Input id="actual-hours" type="number" min="0" step="0.5" placeholder="e.g. 3.5" value={actualHours} onChange={(e) => setActualHours(e.target.value)} />
+            </div>
           </div>
           <DialogFooter className="flex justify-between">
             {task && onDelete && (
