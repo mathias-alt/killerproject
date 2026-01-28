@@ -36,7 +36,7 @@ export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderP
 
   if (zoom === "day") {
     return (
-      <div className="sticky top-0 z-10 bg-background">
+      <div className="bg-background">
         {/* Top row: months */}
         <div className="flex border-b bg-muted/40">
           {monthGroups.map((group, i) => (
@@ -72,7 +72,7 @@ export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderP
   if (zoom === "week") {
     const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
     return (
-      <div className="sticky top-0 z-10 bg-background">
+      <div className="bg-background">
         {/* Top row: months */}
         <div className="flex border-b bg-muted/40">
           {monthGroups.map((group, i) => (
@@ -112,7 +112,7 @@ export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderP
   // Month zoom
   const months = eachMonthOfInterval({ start: startDate, end: endDate });
   return (
-    <div className="sticky top-0 z-10 bg-background">
+    <div className="bg-background">
       {/* Single row for months */}
       <div className="flex border-b bg-muted/30">
         {months.map((month) => {

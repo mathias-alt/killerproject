@@ -283,23 +283,23 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
           </span>
         </div>
 
-        {/* Chart body */}
-        <div className={cn("flex flex-1 overflow-hidden", dependencyDrag && "cursor-crosshair")}>
-          {/* Sidebar */}
-          <GanttSidebar
-            tasks={tasksWithDates}
-            rowHeight={ROW_HEIGHT}
-            headerHeight={headerHeight}
-            selectedTaskId={dependencyDrag?.sourceTaskId}
-            onTaskClick={(t) => {
-              setSelectedTask(t);
-              setEditDialogOpen(true);
-            }}
-          />
+        {/* Chart body - single scroll container for both sidebar and timeline */}
+        <div className={cn("flex-1 overflow-auto", dependencyDrag && "cursor-crosshair")} ref={scrollRef}>
+          <div className="flex min-w-full" style={{ width: `calc(360px + ${timelineWidth}px)` }}>
+            {/* Sidebar */}
+            <GanttSidebar
+              tasks={tasksWithDates}
+              rowHeight={ROW_HEIGHT}
+              headerHeight={headerHeight}
+              selectedTaskId={dependencyDrag?.sourceTaskId}
+              onTaskClick={(t) => {
+                setSelectedTask(t);
+                setEditDialogOpen(true);
+              }}
+            />
 
-          {/* Timeline */}
-          <div className="flex-1 overflow-auto" ref={scrollRef}>
-            <div ref={chartRef} style={{ width: timelineWidth, minHeight: "100%" }}>
+            {/* Timeline */}
+            <div ref={chartRef} className="flex-1" style={{ minWidth: timelineWidth }}>
               <GanttHeader startDate={timelineStart} endDate={timelineEnd} zoom={zoom} dayWidth={dayWidth} />
 
               <div className="relative">

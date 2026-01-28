@@ -18,16 +18,16 @@ function hasProject(task: TaskWithAssignee): task is TaskWithProject {
 
 export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, selectedTaskId }: GanttSidebarProps) {
   return (
-    <div className="shrink-0 border-r bg-background flex flex-col" style={{ width: 460 }}>
+    <div className="shrink-0 border-r bg-background flex flex-col" style={{ width: 360 }}>
       {/* Header row matching the timeline header height */}
       <div
-        className="border-b bg-muted/30 flex items-end text-xs font-medium text-muted-foreground sticky top-0 z-10"
+        className="border-b bg-muted/30 flex items-end text-xs font-medium text-muted-foreground"
         style={{ height: headerHeight }}
       >
-        <div className="w-28 px-2 py-2 border-r">Project</div>
+        <div className="w-24 px-2 py-2 border-r">Project</div>
         <div className="flex-1 px-3 py-2 border-r">Task</div>
-        <div className="w-20 px-2 py-2 text-center border-r">Start</div>
-        <div className="w-20 px-2 py-2 text-center">End</div>
+        <div className="w-16 px-2 py-2 text-center border-r">Start</div>
+        <div className="w-16 px-2 py-2 text-center">End</div>
       </div>
 
       {/* Task rows */}
@@ -43,7 +43,7 @@ export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, sele
           style={{ height: rowHeight }}
           onClick={() => onTaskClick(task)}
         >
-          <div className="w-28 px-2 flex items-center gap-1.5 min-w-0 border-r">
+          <div className="w-24 px-2 flex items-center gap-1.5 min-w-0 border-r">
             {hasProject(task) ? (
               <>
                 <div
@@ -61,10 +61,10 @@ export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, sele
           <div className="flex-1 flex items-center px-3 min-w-0 border-r">
             <span className="text-sm truncate">{task.title}</span>
           </div>
-          <div className="w-20 px-2 text-xs text-muted-foreground text-center border-r">
+          <div className="w-16 px-2 text-xs text-muted-foreground text-center border-r">
             {task.start_date ? format(new Date(task.start_date + "T00:00:00"), "MMM d") : "-"}
           </div>
-          <div className="w-20 px-2 text-xs text-muted-foreground text-center">
+          <div className="w-16 px-2 text-xs text-muted-foreground text-center">
             {task.end_date ? format(new Date(task.end_date + "T00:00:00"), "MMM d") : "-"}
           </div>
         </div>
