@@ -86,3 +86,65 @@ export const PROJECT_COLORS = [
   "#8b5cf6",
   "#ec4899",
 ];
+
+// Ideas types
+export interface Idea {
+  id: string;
+  title: string;
+  description: string | null;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IdeaAttachment {
+  id: string;
+  idea_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string | null;
+  file_size: number | null;
+  created_at: string;
+}
+
+export interface IdeaWithAuthor extends Idea {
+  author: Profile | null;
+  attachments?: IdeaAttachment[];
+}
+
+// Task assignees types
+export interface TaskAssignee {
+  id: string;
+  task_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+// Timely integration types
+export interface TimelyTimeEntry {
+  id: string;
+  timely_id: number;
+  user_id: string;
+  project_name: string | null;
+  note: string | null;
+  hours: number;
+  date: string;
+  linked_task_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimelyTimeEntryWithTask extends TimelyTimeEntry {
+  task: TaskWithProject | null;
+}
+
+export interface TimelyToken {
+  id: string;
+  user_id: string;
+  access_token: string;
+  refresh_token: string;
+  expires_at: string;
+  account_id: number;
+  created_at: string;
+  updated_at: string;
+}

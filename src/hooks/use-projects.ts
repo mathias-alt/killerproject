@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/types/database";
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchProjects = useCallback(async () => {
     const { data } = await supabase
@@ -44,7 +44,12 @@ export function useProjects() {
       .select()
       .single();
 
-    if (data) setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
+    if (error) {
+      console.error("Failed to update project:", error);
+    }
+    if (data) {
+      setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
+    }
     return { data, error };
   }
 

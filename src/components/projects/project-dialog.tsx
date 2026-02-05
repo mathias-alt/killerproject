@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,15 +23,25 @@ interface ProjectDialogProps {
 }
 
 export function ProjectDialog({ open, onOpenChange, project, onSubmit }: ProjectDialogProps) {
-  const [name, setName] = useState(project?.name ?? "");
-  const [description, setDescription] = useState(project?.description ?? "");
-  const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0]);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    project?.start_date && project?.end_date
-      ? { from: new Date(project.start_date), to: new Date(project.end_date) }
-      : undefined
-  );
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState(PROJECT_COLORS[0]);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+
+  // Reset form when dialog opens or project changes
+  useEffect(() => {
+    if (open) {
+      setName(project?.name ?? "");
+      setDescription(project?.description ?? "");
+      setColor(project?.color ?? PROJECT_COLORS[0]);
+      setDateRange(
+        project?.start_date && project?.end_date
+          ? { from: new Date(project.start_date), to: new Date(project.end_date) }
+          : undefined
+      );
+    }
+  }, [open, project]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,12 +55,6 @@ export function ProjectDialog({ open, onOpenChange, project, onSubmit }: Project
     });
     setLoading(false);
     onOpenChange(false);
-    if (!project) {
-      setName("");
-      setDescription("");
-      setColor(PROJECT_COLORS[0]);
-      setDateRange(undefined);
-    }
   }
 
   return (
@@ -58,6 +62,9 @@ export function ProjectDialog({ open, onOpenChange, project, onSubmit }: Project
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
+          <DialogDescription>
+            {project ? "Update the project details below." : "Fill in the details to create a new project."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -73,6 +80,7 @@ export function ProjectDialog({ open, onOpenChange, project, onSubmit }: Project
             <Popover>
               <PopoverTrigger asChild>
                 <Button
+                  type="button"
                   variant="outline"
                   className={cn(
                     "w-full justify-start text-left font-normal",

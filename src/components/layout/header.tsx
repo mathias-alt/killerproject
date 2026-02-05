@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useLayout } from "@/hooks/use-layout";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
-import { ThemeSettings } from "./theme-settings";
+
+const ThemeSettings = dynamic(() => import("./theme-settings").then((m) => m.ThemeSettings), {
+  ssr: false,
+});
 
 const routeLabels: Record<string, string> = {
   "/dashboard": "Dashboard",

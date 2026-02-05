@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskWithAssignee } from "@/lib/types/database";
 
 export function useTasks(projectId: string) {
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchTasks = useCallback(async () => {
     const { data } = await supabase
@@ -23,7 +23,7 @@ export function useTasks(projectId: string) {
     fetchTasks();
   }, [fetchTasks]);
 
-  async function createTask(task: Partial<Task> & { title: string }) {
+  async function createTask(task: Partial<Task> & { title: string }, assigneeIds?: string[]) {
     const maxOrder = tasks.filter((t) => t.status === task.status).length;
     const { data, error } = await supabase
       .from("tasks")
@@ -31,11 +31,19 @@ export function useTasks(projectId: string) {
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*)")
       .single();
 
-    if (data) setTasks((prev) => [...prev, data as TaskWithAssignee]);
+    if (data) {
+      // Save assignees to junction table
+      if (assigneeIds && assigneeIds.length > 0) {
+        await supabase.from("task_assignees").insert(
+          assigneeIds.map((userId) => ({ task_id: data.id, user_id: userId }))
+        );
+      }
+      setTasks((prev) => [...prev, data as TaskWithAssignee]);
+    }
     return { data, error };
   }
 
-  async function updateTask(id: string, updates: Partial<Task>) {
+  async function updateTask(id: string, updates: Partial<Task>, assigneeIds?: string[]) {
     const { data, error } = await supabase
       .from("tasks")
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -43,7 +51,18 @@ export function useTasks(projectId: string) {
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*)")
       .single();
 
-    if (data) setTasks((prev) => prev.map((t) => (t.id === id ? (data as TaskWithAssignee) : t)));
+    if (data) {
+      // Update assignees in junction table
+      if (assigneeIds !== undefined) {
+        await supabase.from("task_assignees").delete().eq("task_id", id);
+        if (assigneeIds.length > 0) {
+          await supabase.from("task_assignees").insert(
+            assigneeIds.map((userId) => ({ task_id: id, user_id: userId }))
+          );
+        }
+      }
+      setTasks((prev) => prev.map((t) => (t.id === id ? (data as TaskWithAssignee) : t)));
+    }
     return { data, error };
   }
 

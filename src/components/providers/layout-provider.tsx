@@ -21,9 +21,14 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   function persist(key: string, value: unknown) {
-    const saved = JSON.parse(localStorage.getItem("layout-settings") ?? "{}");
-    saved[key] = value;
-    localStorage.setItem("layout-settings", JSON.stringify(saved));
+    try {
+      const saved = JSON.parse(localStorage.getItem("layout-settings") ?? "{}");
+      saved[key] = value;
+      localStorage.setItem("layout-settings", JSON.stringify(saved));
+    } catch {
+      // If localStorage is corrupted, reset it
+      localStorage.setItem("layout-settings", JSON.stringify({ [key]: value }));
+    }
   }
 
   function setSidebarStyle(style: SidebarStyle) {

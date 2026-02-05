@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { useTasks } from "@/hooks/use-tasks";
+import { useProfiles } from "@/hooks/use-profiles";
 import { useRealtimeTasks } from "@/hooks/use-realtime";
 import { useDependencies } from "@/hooks/use-dependencies";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
@@ -12,6 +13,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
   const { projectId } = use(params);
   const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch } =
     useTasks(projectId);
+  const { profiles } = useProfiles();
   const { dependencies, addDependency, removeDependency } = useDependencies(projectId);
 
   useRealtimeTasks(projectId, setTasks, refetch);
@@ -32,6 +34,7 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
         <TabsContent value="kanban" className="flex-1 mt-0">
           <KanbanBoard
             tasks={tasks}
+            profiles={profiles}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}

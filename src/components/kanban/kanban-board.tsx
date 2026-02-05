@@ -5,18 +5,19 @@ import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { Column } from "./column";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { TASK_STATUSES } from "@/lib/types/database";
-import type { Task, TaskStatus, TaskWithAssignee, Project } from "@/lib/types/database";
+import type { Task, TaskStatus, TaskWithAssignee, Project, Profile } from "@/lib/types/database";
 
 interface KanbanBoardProps {
   tasks: TaskWithAssignee[];
   projects?: Project[];
-  onCreateTask: (data: Partial<Task> & { title: string }) => Promise<{ data: unknown; error: unknown }>;
-  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<{ data: unknown; error: unknown }>;
+  profiles?: Profile[];
+  onCreateTask: (data: Partial<Task> & { title: string }, assigneeIds?: string[]) => Promise<{ data: unknown; error: unknown }>;
+  onUpdateTask: (id: string, updates: Partial<Task>, assigneeIds?: string[]) => Promise<{ data: unknown; error: unknown }>;
   onDeleteTask: (id: string) => Promise<{ error: unknown }>;
   onMoveTask: (id: string, status: TaskStatus, order: number) => Promise<{ data: unknown; error: unknown }>;
 }
 
-export function KanbanBoard({ tasks, projects, onCreateTask, onUpdateTask, onDeleteTask, onMoveTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateTask, onDeleteTask, onMoveTask }: KanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -60,8 +61,9 @@ export function KanbanBoard({ tasks, projects, onCreateTask, onUpdateTask, onDel
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         task={selectedTask}
-        onSubmit={async (data) => {
-          if (selectedTask) await onUpdateTask(selectedTask.id, data);
+        profiles={profiles}
+        onSubmit={async (data, assigneeIds) => {
+          if (selectedTask) await onUpdateTask(selectedTask.id, data, assigneeIds);
         }}
         onDelete={
           selectedTask
@@ -78,8 +80,9 @@ export function KanbanBoard({ tasks, projects, onCreateTask, onUpdateTask, onDel
         onOpenChange={setCreateDialogOpen}
         defaultStatus={newTaskStatus ?? "todo"}
         projects={projects}
-        onSubmit={async (data) => {
-          await onCreateTask(data);
+        profiles={profiles}
+        onSubmit={async (data, assigneeIds) => {
+          await onCreateTask(data, assigneeIds);
         }}
       />
     </>

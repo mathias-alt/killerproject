@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskWithAssignee, TaskWithProject } from "@/lib/types/database";
 
@@ -9,7 +9,7 @@ export function useRealtimeTasks(
   setTasks: React.Dispatch<React.SetStateAction<TaskWithAssignee[]>>,
   refetch: () => Promise<void>
 ) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const channel = supabase
@@ -38,7 +38,7 @@ export function useRealtimeAllTasks(
   setTasks: React.Dispatch<React.SetStateAction<TaskWithProject[]>>,
   refetch: () => Promise<void>
 ) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const channel = supabase

@@ -153,6 +153,8 @@ export function GanttBar({
 
   const showHandles = isHovered || isDependencyDragging;
 
+  const isDone = task.status === "done";
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -178,6 +180,22 @@ export function GanttBar({
           onMouseLeave={() => setIsHovered(false)}
           onMouseUp={handleMouseUp}
         >
+          {/* Green diagonal stripes overlay for done tasks */}
+          {isDone && (
+            <div
+              className="absolute inset-0 rounded overflow-hidden pointer-events-none"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  transparent,
+                  transparent 4px,
+                  rgba(34, 197, 94, 0.45) 4px,
+                  rgba(34, 197, 94, 0.45) 8px
+                )`,
+              }}
+            />
+          )}
+
           {/* Progress fill */}
           {progress > 0 && progress < 100 && (
             <div

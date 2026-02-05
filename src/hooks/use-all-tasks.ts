@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskWithProject } from "@/lib/types/database";
 
 export function useAllTasks() {
   const [tasks, setTasks] = useState<TaskWithProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchTasks = useCallback(async () => {
     const { data } = await supabase
@@ -22,7 +22,7 @@ export function useAllTasks() {
     fetchTasks();
   }, [fetchTasks]);
 
-  async function createTask(task: Partial<Task> & { title: string }) {
+  async function createTask(task: Partial<Task> & { title: string }, assigneeIds?: string[]) {
     const maxOrder = tasks.filter((t) => t.status === task.status).length;
     const { data, error } = await supabase
       .from("tasks")
@@ -30,11 +30,18 @@ export function useAllTasks() {
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*), project:projects!tasks_project_id_fkey(*)")
       .single();
 
-    if (data) setTasks((prev) => [...prev, data as TaskWithProject]);
+    if (data) {
+      if (assigneeIds && assigneeIds.length > 0) {
+        await supabase.from("task_assignees").insert(
+          assigneeIds.map((userId) => ({ task_id: data.id, user_id: userId }))
+        );
+      }
+      setTasks((prev) => [...prev, data as TaskWithProject]);
+    }
     return { data, error };
   }
 
-  async function updateTask(id: string, updates: Partial<Task>) {
+  async function updateTask(id: string, updates: Partial<Task>, assigneeIds?: string[]) {
     const { data, error } = await supabase
       .from("tasks")
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -42,7 +49,17 @@ export function useAllTasks() {
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*), project:projects!tasks_project_id_fkey(*)")
       .single();
 
-    if (data) setTasks((prev) => prev.map((t) => (t.id === id ? (data as TaskWithProject) : t)));
+    if (data) {
+      if (assigneeIds !== undefined) {
+        await supabase.from("task_assignees").delete().eq("task_id", id);
+        if (assigneeIds.length > 0) {
+          await supabase.from("task_assignees").insert(
+            assigneeIds.map((userId) => ({ task_id: id, user_id: userId }))
+          );
+        }
+      }
+      setTasks((prev) => prev.map((t) => (t.id === id ? (data as TaskWithProject) : t)));
+    }
     return { data, error };
   }
 

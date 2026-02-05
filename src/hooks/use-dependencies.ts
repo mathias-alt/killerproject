@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskDependency } from "@/lib/types/database";
 
 export function useDependencies(projectId?: string) {
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchDependencies = useCallback(async () => {
     try {

@@ -5,10 +5,33 @@ import { useProjects } from "@/hooks/use-projects";
 import { ProjectCard } from "@/components/projects/project-card";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { Project } from "@/lib/types/database";
 
 export default function ProjectsPage() {
-  const { projects, loading, createProject } = useProjects();
+  const { projects, loading, createProject, updateProject, deleteProject } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | undefined>(undefined);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  function handleEdit(project: Project) {
+    setEditingProject(project);
+    setDialogOpen(true);
+  }
+
+  function handleNewProject() {
+    setEditingProject(undefined);
+    setDialogOpen(true);
+  }
+
+  async function handleDelete() {
+    if (!deletingProject) return;
+    setDeleteLoading(true);
+    await deleteProject(deletingProject.id);
+    setDeleteLoading(false);
+    setDeletingProject(null);
+  }
 
   return (
     <div className="p-6">
@@ -17,7 +40,7 @@ export default function ProjectsPage() {
           <h2 className="text-lg font-semibold">All Projects</h2>
           <p className="text-sm text-muted-foreground">Manage and view your projects</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>New Project</Button>
+        <Button onClick={handleNewProject}>New Project</Button>
       </div>
 
       {loading ? (
@@ -30,18 +53,50 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onEdit={handleEdit}
+              onDelete={setDeletingProject}
+            />
           ))}
         </div>
       )}
 
       <ProjectDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingProject(undefined);
+        }}
+        project={editingProject}
         onSubmit={async (data) => {
-          await createProject(data);
+          if (editingProject) {
+            const result = await updateProject(editingProject.id, data);
+            if (result?.error) console.error("Update project failed:", result.error);
+          } else {
+            await createProject(data);
+          }
         }}
       />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deletingProject} onOpenChange={(open) => !open && setDeletingProject(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &ldquo;{deletingProject?.name}&rdquo;? This will also delete all tasks in this project. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingProject(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting..." : "Delete Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

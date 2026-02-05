@@ -151,16 +151,19 @@ export function HoursByMonthChart({ tasks }: { tasks: TaskWithProject[] }) {
   const monthMap = new Map<string, { estimated: number; actual: number }>();
 
   tasks.forEach((t) => {
-    const dateStr = t.end_date || t.start_date || t.created_at;
-    if (!dateStr) return;
-    const month = format(
-      dateStr.includes("T") ? parseISO(dateStr) : new Date(dateStr + "T00:00:00"),
-      "yyyy-MM"
-    );
-    const entry = monthMap.get(month) || { estimated: 0, actual: 0 };
-    entry.estimated += t.estimated_hours ?? 0;
-    entry.actual += t.actual_hours ?? 0;
-    monthMap.set(month, entry);
+    try {
+      const dateStr = t.end_date || t.start_date || t.created_at;
+      if (!dateStr) return;
+      const parsed = dateStr.includes("T") ? parseISO(dateStr) : new Date(dateStr + "T00:00:00");
+      if (isNaN(parsed.getTime())) return;
+      const month = format(parsed, "yyyy-MM");
+      const entry = monthMap.get(month) || { estimated: 0, actual: 0 };
+      entry.estimated += t.estimated_hours ?? 0;
+      entry.actual += t.actual_hours ?? 0;
+      monthMap.set(month, entry);
+    } catch {
+      // Skip tasks with unparseable dates
+    }
   });
 
   const data = Array.from(monthMap.entries())

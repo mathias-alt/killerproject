@@ -20,6 +20,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Zap,
+  Clock,
+  Lightbulb,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -27,6 +30,8 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/kanban", label: "Kanban Board", icon: Columns3 },
   { href: "/dashboard/gantt", label: "Gantt Chart", icon: GanttChart },
+  { href: "/dashboard/time-entries", label: "Time Entries", icon: Clock },
+  { href: "/dashboard/ideas", label: "Ideas", icon: Lightbulb },
 ];
 
 export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
@@ -177,6 +182,20 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
+                  <Link
+                    href="/dashboard/profile"
+                    className={cn(
+                      "flex items-center justify-center rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
+                      pathname === "/dashboard/profile" && "bg-accent text-accent-foreground"
+                    )}
+                  >
+                    <User className="h-4 w-4" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Profile</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -199,6 +218,16 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
             </>
           ) : (
             <>
+              <Link
+                href="/dashboard/profile"
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  pathname === "/dashboard/profile" && "bg-accent text-accent-foreground"
+                )}
+              >
+                <User className="h-4 w-4" />
+                Profile
+              </Link>
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3 text-sm text-muted-foreground hover:text-foreground"

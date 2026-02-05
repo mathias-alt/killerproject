@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CalendarIcon, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,8 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TASK_STATUSES, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/types/database";
-import type { Task, TaskStatus, TaskPriority, Project } from "@/lib/types/database";
+import type { Task, TaskStatus, TaskPriority, Project, Profile } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
@@ -22,11 +24,13 @@ interface TaskDialogProps {
   task?: Task | null;
   defaultStatus?: TaskStatus;
   projects?: Project[];
-  onSubmit: (data: Partial<Task> & { title: string }) => Promise<void>;
+  profiles?: Profile[];
+  assigneeIds?: string[];
+  onSubmit: (data: Partial<Task> & { title: string }, assigneeIds?: string[]) => Promise<void>;
   onDelete?: () => Promise<void>;
 }
 
-export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, onSubmit, onDelete }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, profiles, assigneeIds: initialAssigneeIds, onSubmit, onDelete }: TaskDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
@@ -35,6 +39,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
   const [estimatedHours, setEstimatedHours] = useState("");
   const [actualHours, setActualHours] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -53,6 +58,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setEstimatedHours(task.estimated_hours?.toString() ?? "");
       setActualHours(task.actual_hours?.toString() ?? "");
       setProjectId(task.project_id);
+      setSelectedAssignees(initialAssigneeIds ?? (task.assignee_id ? [task.assignee_id] : []));
     } else {
       setTitle("");
       setDescription("");
@@ -62,32 +68,51 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
       setEstimatedHours("");
       setActualHours("");
       setProjectId(projects?.[0]?.id ?? "");
+      setSelectedAssignees([]);
     }
-  }, [task, defaultStatus, open, projects]);
+  }, [task, defaultStatus, open, projects, initialAssigneeIds]);
+
+  function toggleAssignee(userId: string) {
+    setSelectedAssignees((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  }
+
+  function getInitials(name: string | null) {
+    if (!name) return "?";
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await onSubmit({
-      title,
-      description: description || null,
-      status,
-      priority,
-      start_date: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
-      end_date: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
-      estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
-      actual_hours: actualHours ? parseFloat(actualHours) : null,
-      ...(projectId && { project_id: projectId }),
-    });
+    await onSubmit(
+      {
+        title,
+        description: description || null,
+        status,
+        priority,
+        start_date: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
+        end_date: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
+        estimated_hours: estimatedHours ? parseFloat(estimatedHours) : null,
+        actual_hours: actualHours ? parseFloat(actualHours) : null,
+        assignee_id: selectedAssignees[0] ?? null,
+        ...(projectId && { project_id: projectId }),
+      },
+      selectedAssignees
+    );
     setLoading(false);
     onOpenChange(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{task ? "Edit Task" : "New Task"}</DialogTitle>
+          <DialogDescription>
+            {task ? "Update the task details below." : "Fill in the details to create a new task."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {projects && projects.length > 0 && !task && (
@@ -146,6 +171,64 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
               </Select>
             </div>
           </div>
+
+          {/* Multi-user Assignees */}
+          {profiles && profiles.length > 0 && (
+            <div className="space-y-2">
+              <Label>Assignees</Label>
+              {selectedAssignees.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {selectedAssignees.map((userId) => {
+                    const profile = profiles.find((p) => p.id === userId);
+                    return (
+                      <Badge key={userId} variant="secondary" className="gap-1 pr-1">
+                        <Avatar className="h-4 w-4">
+                          <AvatarImage src={profile?.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[8px]">{getInitials(profile?.full_name ?? null)}</AvatarFallback>
+                        </Avatar>
+                        {profile?.full_name || "Unknown"}
+                        <button type="button" onClick={() => toggleAssignee(userId)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-start text-muted-foreground font-normal">
+                    {selectedAssignees.length === 0 ? "Select assignees..." : `${selectedAssignees.length} assigned`}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {profiles.map((profile) => (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        onClick={() => toggleAssignee(profile.id)}
+                        className={cn(
+                          "flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent",
+                          selectedAssignees.includes(profile.id) && "bg-accent"
+                        )}
+                      >
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={profile.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[10px]">{getInitials(profile.full_name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{profile.full_name || "Unnamed"}</span>
+                        {selectedAssignees.includes(profile.id) && (
+                          <span className="ml-auto text-primary">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Date Range</Label>
             <Popover>
