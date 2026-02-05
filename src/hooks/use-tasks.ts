@@ -25,9 +25,10 @@ export function useTasks(projectId: string) {
 
   async function createTask(task: Partial<Task> & { title: string }, assigneeIds?: string[]) {
     const maxOrder = tasks.filter((t) => t.status === task.status).length;
+    const completedAt = task.status === "done" ? new Date().toISOString() : null;
     const { data, error } = await supabase
       .from("tasks")
-      .insert({ ...task, project_id: projectId, order: maxOrder })
+      .insert({ ...task, project_id: projectId, order: maxOrder, completed_at: completedAt })
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*)")
       .single();
 
@@ -44,9 +45,15 @@ export function useTasks(projectId: string) {
   }
 
   async function updateTask(id: string, updates: Partial<Task>, assigneeIds?: string[]) {
+    // Auto-set completed_at based on status transitions
+    const completedAtUpdate: { completed_at?: string | null } = {};
+    if (updates.status !== undefined) {
+      completedAtUpdate.completed_at = updates.status === "done" ? new Date().toISOString() : null;
+    }
+
     const { data, error } = await supabase
       .from("tasks")
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, ...completedAtUpdate, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select("*, assignee:profiles!tasks_assignee_id_fkey(*)")
       .single();

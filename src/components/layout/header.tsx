@@ -15,6 +15,10 @@ const routeLabels: Record<string, string> = {
   "/dashboard/kanban": "Kanban Board",
   "/dashboard/gantt": "Gantt Chart",
   "/dashboard/projects": "Projects",
+  "/dashboard/completed-tasks": "Completed Tasks",
+  "/dashboard/ideas": "Ideas",
+  "/dashboard/profile": "Profile",
+  "/dashboard/time-entries": "Time Entries",
 };
 
 export function Header({ showSidebarToggle }: { showSidebarToggle?: boolean }) {

@@ -36,6 +36,7 @@ export interface Task {
   parent_task_id: string | null;
   created_at: string;
   updated_at: string;
+  completed_at: string | null;
 }
 
 export interface TaskWithAssignee extends Task {

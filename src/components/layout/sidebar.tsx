@@ -23,6 +23,7 @@ import {
   Clock,
   Lightbulb,
   User,
+  CheckCircle2,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/dashboard/kanban", label: "Kanban Board", icon: Columns3 },
   { href: "/dashboard/gantt", label: "Gantt Chart", icon: GanttChart },
   { href: "/dashboard/time-entries", label: "Time Entries", icon: Clock },
+  { href: "/dashboard/completed-tasks", label: "Completed", icon: CheckCircle2 },
   { href: "/dashboard/ideas", label: "Ideas", icon: Lightbulb },
 ];
 
