@@ -138,7 +138,7 @@ export function GanttHeader({ startDate, endDate, zoom, dayWidth }: GanttHeaderP
 // Export header height for use in other components
 // These values must match the actual rendered height of the header rows
 export const HEADER_HEIGHT = {
-  day: 28,   // Month row only (day row is separate)
-  week: 28,  // Month row only
-  month: 28, // Single month row
+  day: 63,   // Month row + day row (measured from browser)
+  week: 56,  // Month row (28px) + week row (28px)
+  month: 36, // Single month row
 };

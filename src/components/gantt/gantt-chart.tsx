@@ -4,13 +4,35 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { addDays, subDays, differenceInDays, min, max, startOfDay, eachDayOfInterval } from "date-fns";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { GanttHeader, HEADER_HEIGHT, type ZoomLevel } from "./gantt-header";
 import { GanttBar } from "./gantt-bar";
 import { GanttSidebar } from "./gantt-sidebar";
 import { TaskDialog } from "@/components/tasks/task-dialog";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut, ArrowUpDown, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Task, TaskWithAssignee, TaskDependency } from "@/lib/types/database";
+import type { Task, TaskPriority, TaskWithAssignee, TaskDependency, Project, Profile } from "@/lib/types/database";
+import { TASK_PRIORITY_LABELS } from "@/lib/types/database";
+
+type GanttSortOption = "default" | "project" | "priority";
+type GanttFilterState = {
+  projectId: string;
+  priority: string;
+  assigneeId: string;
+};
+
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
 
 const ZOOM_CONFIG: Record<ZoomLevel, number> = {
   day: 40,
@@ -22,6 +44,8 @@ const ROW_HEIGHT = 40;
 
 interface GanttChartProps {
   tasks: TaskWithAssignee[];
+  projects?: Project[];
+  profiles?: Profile[];
   dependencies?: TaskDependency[];
   onUpdateTask: (id: string, updates: Partial<Task>) => Promise<{ data: unknown; error: unknown }>;
   onDeleteTask: (id: string) => Promise<{ error: unknown }>;
@@ -29,13 +53,21 @@ interface GanttChartProps {
   onRemoveDependency?: (id: string) => Promise<{ error: unknown }>;
 }
 
-export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTask, onAddDependency, onRemoveDependency }: GanttChartProps) {
+export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpdateTask, onDeleteTask, onAddDependency, onRemoveDependency }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("day");
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
+
+  // Sorting & filtering state
+  const [sortBy, setSortBy] = useState<GanttSortOption>("default");
+  const [filters, setFilters] = useState<GanttFilterState>({
+    projectId: "all",
+    priority: "all",
+    assigneeId: "all",
+  });
 
   // Dependency drag state
   const [dependencyDrag, setDependencyDrag] = useState<{
@@ -47,10 +79,39 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
   const dayWidth = ZOOM_CONFIG[zoom];
   const headerHeight = HEADER_HEIGHT[zoom];
 
-  const tasksWithDates = useMemo(
-    () => tasks.filter((t) => t.start_date && t.end_date),
-    [tasks]
-  );
+  // Filter and sort tasks with dates
+  const tasksWithDates = useMemo(() => {
+    // First filter tasks that have dates
+    let filtered = tasks.filter((t) => t.start_date && t.end_date);
+
+    // Apply filters
+    if (filters.projectId !== "all") {
+      filtered = filtered.filter((t) => t.project_id === filters.projectId);
+    }
+    if (filters.priority !== "all") {
+      filtered = filtered.filter((t) => t.priority === filters.priority);
+    }
+    if (filters.assigneeId !== "all") {
+      filtered = filtered.filter((t) => t.assignee_id === filters.assigneeId);
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case "project":
+        return filtered.sort((a, b) => {
+          const projA = projects?.find((p) => p.id === a.project_id)?.name ?? "";
+          const projB = projects?.find((p) => p.id === b.project_id)?.name ?? "";
+          return projA.localeCompare(projB);
+        });
+      case "priority":
+        return filtered.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+      default:
+        // Default: sort by start date
+        return filtered.sort((a, b) =>
+          new Date(a.start_date!).getTime() - new Date(b.start_date!).getTime()
+        );
+    }
+  }, [tasks, filters, sortBy, projects]);
 
   const taskIndexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -267,7 +328,8 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
     <TooltipProvider>
       <div className="flex flex-col h-full bg-background">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/30">
+          {/* Zoom controls */}
           <div className="flex items-center gap-1">
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={zoomOut} disabled={zoom === "month"}>
               <ZoomOut className="h-4 w-4" />
@@ -280,7 +342,99 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
             </Button>
           </div>
 
-          <div className="h-6 w-px bg-border mx-2" />
+          <div className="h-6 w-px bg-border" />
+
+          {/* Sort */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as GanttSortOption)}>
+              <SelectTrigger className="w-[120px] h-8">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Start Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                {projects && projects.length > 0 && (
+                  <SelectItem value="project">Project</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="h-6 w-px bg-border" />
+
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+
+            {/* Project filter */}
+            {projects && projects.length > 0 && (
+              <Select
+                value={filters.projectId}
+                onValueChange={(v) => setFilters((f) => ({ ...f, projectId: v }))}
+              >
+                <SelectTrigger className="w-[140px] h-8">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: p.color }}
+                        />
+                        {p.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Priority filter */}
+            <Select
+              value={filters.priority}
+              onValueChange={(v) => setFilters((f) => ({ ...f, priority: v }))}
+            >
+              <SelectTrigger className="w-[110px] h-8">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+
+            {/* Assignee filter */}
+            {profiles && profiles.length > 0 && (
+              <Select
+                value={filters.assigneeId}
+                onValueChange={(v) => setFilters((f) => ({ ...f, assigneeId: v }))}
+              >
+                <SelectTrigger className="w-[140px] h-8">
+                  <SelectValue placeholder="All Assignees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Assignees</SelectItem>
+                  {profiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.full_name ?? "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="h-6 w-px bg-border" />
 
           <span className="text-xs text-muted-foreground">
             {dependencyDrag ? (
@@ -289,7 +443,10 @@ export function GanttChart({ tasks, dependencies = [], onUpdateTask, onDeleteTas
               </span>
             ) : (
               <>
-                {tasksWithDates.length} of {tasks.length} tasks with dates
+                {tasksWithDates.length} of {tasks.filter((t) => t.start_date && t.end_date).length} tasks
+                {(filters.projectId !== "all" || filters.priority !== "all" || filters.assigneeId !== "all") && (
+                  <span className="text-muted-foreground/70"> (filtered)</span>
+                )}
                 {onAddDependency && (
                   <span className="ml-2 text-muted-foreground/70">• Drag between task handles to link</span>
                 )}

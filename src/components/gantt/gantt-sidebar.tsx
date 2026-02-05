@@ -19,18 +19,17 @@ function hasProject(task: TaskWithAssignee): task is TaskWithProject {
 export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, selectedTaskId }: GanttSidebarProps) {
   return (
     <div className="flex flex-col h-full" style={{ width: 360 }}>
-      {/* Spacer to align with timeline month header */}
-      <div style={{ height: headerHeight }} />
-
-      {/* Column headers aligned with task rows */}
+      {/* Header area that matches GanttHeader height exactly */}
       <div
-        className="flex items-center border-b bg-muted/30 text-xs font-medium text-muted-foreground"
-        style={{ height: rowHeight }}
+        className="flex items-end border-b bg-muted/20 shrink-0"
+        style={{ height: headerHeight, minHeight: headerHeight, maxHeight: headerHeight }}
       >
-        <div className="w-24 px-2 border-r h-full flex items-center">Project</div>
-        <div className="flex-1 px-3 border-r h-full flex items-center">Task</div>
-        <div className="w-16 px-2 text-center border-r h-full flex items-center justify-center">Start</div>
-        <div className="w-16 px-2 text-center h-full flex items-center justify-center">End</div>
+        <div className="flex items-center w-full text-xs font-medium text-muted-foreground pb-1">
+          <div className="w-24 px-2 border-r">Project</div>
+          <div className="flex-1 px-3 border-r">Task</div>
+          <div className="w-16 px-2 text-center border-r">Start</div>
+          <div className="w-16 px-2 text-center">End</div>
+        </div>
       </div>
 
       {/* Task rows */}
@@ -38,12 +37,12 @@ export function GanttSidebar({ tasks, rowHeight, headerHeight, onTaskClick, sele
         <div
           key={task.id}
           className={cn(
-            "flex items-center border-b cursor-pointer transition-colors",
+            "flex items-center border-b cursor-pointer transition-colors shrink-0",
             index % 2 === 0 ? "bg-background" : "bg-muted/20",
             selectedTaskId === task.id && "bg-primary/10",
             "hover:bg-muted/50"
           )}
-          style={{ height: rowHeight }}
+          style={{ height: rowHeight, minHeight: rowHeight, maxHeight: rowHeight }}
           onClick={() => onTaskClick(task)}
         >
           <div className="w-24 px-2 flex items-center gap-1.5 min-w-0 border-r">
