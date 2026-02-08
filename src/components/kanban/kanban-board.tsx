@@ -87,6 +87,14 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
     }
   }
 
+  // Calculate hours for a status column
+  function getHoursForStatus(status: TaskStatus) {
+    const statusTasks = filteredTasks.filter((t) => t.status === status);
+    const estimated = statusTasks.reduce((sum, t) => sum + (t.estimated_hours ?? 0), 0);
+    const actual = statusTasks.reduce((sum, t) => sum + (t.actual_hours ?? 0), 0);
+    return { estimated, actual };
+  }
+
   function handleDragEnd(result: DropResult) {
     if (!result.destination) return;
     const { draggableId, destination } = result;
@@ -202,21 +210,26 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto p-4">
-          {TASK_STATUSES.map((status) => (
-            <Column
-              key={status}
-              status={status}
-              tasks={getTasksByStatus(status)}
-              onTaskClick={(task) => {
-                setSelectedTask(task);
-                setEditDialogOpen(true);
-              }}
-              onAddTask={(s) => {
-                setNewTaskStatus(s);
-                setCreateDialogOpen(true);
-              }}
-            />
-          ))}
+          {TASK_STATUSES.map((status) => {
+            const hours = getHoursForStatus(status);
+            return (
+              <Column
+                key={status}
+                status={status}
+                tasks={getTasksByStatus(status)}
+                estimatedHours={hours.estimated}
+                actualHours={hours.actual}
+                onTaskClick={(task) => {
+                  setSelectedTask(task);
+                  setEditDialogOpen(true);
+                }}
+                onAddTask={(s) => {
+                  setNewTaskStatus(s);
+                  setCreateDialogOpen(true);
+                }}
+              />
+            );
+          })}
         </div>
       </DragDropContext>
 
