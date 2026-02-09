@@ -31,6 +31,14 @@ export function Column({ status, tasks, estimatedHours, actualHours, onTaskClick
       <div className="mb-2 px-2 text-xs text-muted-foreground">
         {formatHours(estimatedHours)} / {formatHours(actualHours)}
       </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mb-2 w-full text-muted-foreground"
+        onClick={() => onAddTask(status)}
+      >
+        + Add Task
+      </Button>
       <Droppable droppableId={status}>
         {(provided) => (
           <div
