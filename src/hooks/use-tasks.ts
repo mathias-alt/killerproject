@@ -83,5 +83,35 @@ export function useTasks(projectId: string) {
     return updateTask(id, { status: newStatus, order: newOrder });
   }
 
-  return { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch: fetchTasks };
+  async function createSubtask(parentTaskId: string, title: string) {
+    const parentTask = tasks.find((t) => t.id === parentTaskId);
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title,
+        project_id: projectId,
+        parent_task_id: parentTaskId,
+        status: "todo" as TaskStatus,
+        priority: parentTask?.priority ?? "medium",
+        order: 0,
+      })
+      .select("*, assignee:profiles!tasks_assignee_id_fkey(*)")
+      .single();
+
+    if (data) {
+      setTasks((prev) => [...prev, data as TaskWithAssignee]);
+    }
+    return { data, error };
+  }
+
+  async function toggleSubtask(subtaskId: string, completed: boolean) {
+    const newStatus: TaskStatus = completed ? "done" : "todo";
+    return updateTask(subtaskId, { status: newStatus });
+  }
+
+  function getSubtasks(parentTaskId: string) {
+    return tasks.filter((t) => t.parent_task_id === parentTaskId);
+  }
+
+  return { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, createSubtask, toggleSubtask, getSubtasks, refetch: fetchTasks };
 }

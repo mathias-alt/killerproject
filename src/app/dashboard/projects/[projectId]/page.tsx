@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch } =
+  const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, createSubtask, toggleSubtask, getSubtasks, refetch } =
     useTasks(projectId);
   const { profiles } = useProfiles();
   const { dependencies, addDependency, removeDependency } = useDependencies(projectId);
@@ -39,6 +39,9 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
             onMoveTask={moveTask}
+            onCreateSubtask={createSubtask}
+            onToggleSubtask={toggleSubtask}
+            getSubtasks={getSubtasks}
           />
         </TabsContent>
         <TabsContent value="gantt" className="flex-1 mt-0">

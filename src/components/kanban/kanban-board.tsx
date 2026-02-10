@@ -37,9 +37,12 @@ interface KanbanBoardProps {
   onUpdateTask: (id: string, updates: Partial<Task>, assigneeIds?: string[]) => Promise<{ data: unknown; error: unknown }>;
   onDeleteTask: (id: string) => Promise<{ error: unknown }>;
   onMoveTask: (id: string, status: TaskStatus, order: number) => Promise<{ data: unknown; error: unknown }>;
+  onCreateSubtask?: (parentTaskId: string, title: string) => Promise<{ data: unknown; error: unknown }>;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => Promise<{ data: unknown; error: unknown }>;
+  getSubtasks?: (parentTaskId: string) => TaskWithAssignee[];
 }
 
-export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateTask, onDeleteTask, onMoveTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateTask, onDeleteTask, onMoveTask, onCreateSubtask, onToggleSubtask, getSubtasks }: KanbanBoardProps) {
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -53,9 +56,11 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
     assigneeId: "all",
   });
 
-  // Filter tasks
+  // Filter tasks (exclude subtasks from main view)
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      // Don't show subtasks in the main kanban view
+      if (task.parent_task_id) return false;
       if (filters.projectId !== "all" && task.project_id !== filters.projectId) return false;
       if (filters.priority !== "all" && task.priority !== filters.priority) return false;
       if (filters.assigneeId !== "all" && task.assignee_id !== filters.assigneeId) return false;
@@ -94,6 +99,23 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
     const actual = statusTasks.reduce((sum, t) => sum + (t.actual_hours ?? 0), 0);
     return { estimated, actual };
   }
+
+  // Calculate subtask counts for each parent task
+  const subtaskCounts = useMemo(() => {
+    const counts: Record<string, { total: number; completed: number }> = {};
+    for (const task of tasks) {
+      if (task.parent_task_id) {
+        if (!counts[task.parent_task_id]) {
+          counts[task.parent_task_id] = { total: 0, completed: 0 };
+        }
+        counts[task.parent_task_id].total++;
+        if (task.status === "done") {
+          counts[task.parent_task_id].completed++;
+        }
+      }
+    }
+    return counts;
+  }, [tasks]);
 
   function handleDragEnd(result: DropResult) {
     if (!result.destination) return;
@@ -219,6 +241,7 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
                 tasks={getTasksByStatus(status)}
                 estimatedHours={hours.estimated}
                 actualHours={hours.actual}
+                subtaskCounts={subtaskCounts}
                 onTaskClick={(task) => {
                   setSelectedTask(task);
                   setEditDialogOpen(true);
@@ -238,6 +261,7 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
         onOpenChange={setEditDialogOpen}
         task={selectedTask}
         profiles={profiles}
+        subtasks={selectedTask && getSubtasks ? getSubtasks(selectedTask.id) : undefined}
         onSubmit={async (data, assigneeIds) => {
           if (selectedTask) await onUpdateTask(selectedTask.id, data, assigneeIds);
         }}
@@ -248,6 +272,25 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
                 setEditDialogOpen(false);
               }
             : undefined
+        }
+        onCreateSubtask={
+          selectedTask && onCreateSubtask
+            ? async (title) => {
+                await onCreateSubtask(selectedTask.id, title);
+              }
+            : undefined
+        }
+        onToggleSubtask={
+          onToggleSubtask
+            ? async (subtaskId, completed) => {
+                await onToggleSubtask(subtaskId, completed);
+              }
+            : undefined
+        }
+        onDeleteSubtask={
+          async (subtaskId) => {
+            await onDeleteTask(subtaskId);
+          }
         }
       />
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon, X, Plus, Check, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TASK_STATUSES, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/types/database";
-import type { Task, TaskStatus, TaskPriority, Project, Profile } from "@/lib/types/database";
+import type { Task, TaskStatus, TaskPriority, Project, Profile, TaskWithAssignee } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
 
@@ -26,11 +27,15 @@ interface TaskDialogProps {
   projects?: Project[];
   profiles?: Profile[];
   assigneeIds?: string[];
+  subtasks?: TaskWithAssignee[];
   onSubmit: (data: Partial<Task> & { title: string }, assigneeIds?: string[]) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onCreateSubtask?: (title: string) => Promise<void>;
+  onToggleSubtask?: (subtaskId: string, completed: boolean) => Promise<void>;
+  onDeleteSubtask?: (subtaskId: string) => Promise<void>;
 }
 
-export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, profiles, assigneeIds: initialAssigneeIds, onSubmit, onDelete }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, profiles, assigneeIds: initialAssigneeIds, subtasks, onSubmit, onDelete, onCreateSubtask, onToggleSubtask, onDeleteSubtask }: TaskDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
@@ -41,6 +46,7 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
   const [projectId, setProjectId] = useState("");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
   useEffect(() => {
     if (task) {
@@ -277,6 +283,70 @@ export function TaskDialog({ open, onOpenChange, task, defaultStatus, projects, 
               <Input id="actual-hours" type="number" min="0" step="0.5" placeholder="e.g. 3.5" value={actualHours} onChange={(e) => setActualHours(e.target.value)} />
             </div>
           </div>
+
+          {/* Subtasks - only show when editing an existing task */}
+          {task && onCreateSubtask && (
+            <div className="space-y-2">
+              <Label>Subtasks</Label>
+              <div className="space-y-2">
+                {subtasks && subtasks.length > 0 && (
+                  <div className="space-y-1">
+                    {subtasks.map((subtask) => (
+                      <div key={subtask.id} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                        <Checkbox
+                          checked={subtask.status === "done"}
+                          onCheckedChange={(checked) => onToggleSubtask?.(subtask.id, checked as boolean)}
+                        />
+                        <span className={cn("flex-1 text-sm", subtask.status === "done" && "line-through text-muted-foreground")}>
+                          {subtask.title}
+                        </span>
+                        {onDeleteSubtask && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => onDeleteSubtask(subtask.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add a subtask..."
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newSubtaskTitle.trim()) {
+                        e.preventDefault();
+                        onCreateSubtask(newSubtaskTitle.trim());
+                        setNewSubtaskTitle("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!newSubtaskTitle.trim()}
+                    onClick={() => {
+                      if (newSubtaskTitle.trim()) {
+                        onCreateSubtask(newSubtaskTitle.trim());
+                        setNewSubtaskTitle("");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <DialogFooter className="flex justify-between">
             {task && onDelete && (
               <Button type="button" variant="destructive" onClick={onDelete}>

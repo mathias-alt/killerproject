@@ -7,7 +7,7 @@ import { useRealtimeAllTasks } from "@/hooks/use-realtime";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 
 export default function KanbanPage() {
-  const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, refetch } =
+  const { tasks, setTasks, loading, createTask, updateTask, deleteTask, moveTask, createSubtask, toggleSubtask, getSubtasks, refetch } =
     useAllTasks();
   const { projects } = useProjects();
   const { profiles } = useProfiles();
@@ -27,6 +27,9 @@ export default function KanbanPage() {
       onUpdateTask={updateTask}
       onDeleteTask={deleteTask}
       onMoveTask={moveTask}
+      onCreateSubtask={createSubtask}
+      onToggleSubtask={toggleSubtask}
+      getSubtasks={getSubtasks}
     />
   );
 }

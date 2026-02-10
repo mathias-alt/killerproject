@@ -6,11 +6,17 @@ import { Button } from "@/components/ui/button";
 import { TASK_STATUS_LABELS } from "@/lib/types/database";
 import type { TaskStatus, TaskWithAssignee } from "@/lib/types/database";
 
+interface SubtaskCount {
+  total: number;
+  completed: number;
+}
+
 interface ColumnProps {
   status: TaskStatus;
   tasks: TaskWithAssignee[];
   estimatedHours: number;
   actualHours: number;
+  subtaskCounts: Record<string, SubtaskCount>;
   onTaskClick: (task: TaskWithAssignee) => void;
   onAddTask: (status: TaskStatus) => void;
 }
@@ -21,7 +27,7 @@ function formatHours(hours: number): string {
   return hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`;
 }
 
-export function Column({ status, tasks, estimatedHours, actualHours, onTaskClick, onAddTask }: ColumnProps) {
+export function Column({ status, tasks, estimatedHours, actualHours, subtaskCounts, onTaskClick, onAddTask }: ColumnProps) {
   return (
     <div className="flex w-72 shrink-0 flex-col rounded-lg bg-muted/50 p-2">
       <div className="mb-1 flex items-center justify-between px-2">
@@ -47,7 +53,7 @@ export function Column({ status, tasks, estimatedHours, actualHours, onTaskClick
             className="flex flex-1 flex-col gap-2 min-h-[100px]"
           >
             {tasks.map((task, index) => (
-              <TaskCard key={task.id} task={task} index={index} onClick={() => onTaskClick(task)} />
+              <TaskCard key={task.id} task={task} index={index} subtaskCount={subtaskCounts[task.id]} onClick={() => onTaskClick(task)} />
             ))}
             {provided.placeholder}
           </div>
