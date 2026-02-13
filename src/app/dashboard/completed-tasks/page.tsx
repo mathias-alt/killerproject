@@ -205,7 +205,7 @@ export default function CompletedTasksPage() {
       ) : (
         <div className="space-y-2">
           {completedTasks.map((task) => {
-            const missingHours = !task.actual_hours;
+            const missingHours = task.actual_hours == null;
             return (
               <Card key={task.id} className={cn(missingHours && "border-destructive border-2")}>
                 <CardContent className="py-4">
@@ -234,7 +234,7 @@ export default function CompletedTasksPage() {
                       <span className="text-sm text-muted-foreground">
                         {format(new Date(task.completed_at!), "MMM d, yyyy")}
                       </span>
-                      {task.actual_hours ? (
+                      {task.actual_hours != null ? (
                         <span className="text-xs text-emerald-600 dark:text-emerald-400">
                           {task.actual_hours}h logged
                         </span>

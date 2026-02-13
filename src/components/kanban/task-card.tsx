@@ -66,9 +66,9 @@ export function TaskCard({ task, index, subtaskCount, onClick, dndEnabled = true
     movedDuringPointerRef.current = false;
   };
 
-  // Check if task is done but missing actual hours
+  // Check if task is done but missing actual hours (0 is valid)
   const isDone = task.status === "done";
-  const missingActualHours = isDone && !task.actual_hours;
+  const missingActualHours = isDone && task.actual_hours == null;
 
   const baseClassName = cn(
     "rounded-xl border bg-card/90 p-3 text-card-foreground shadow-[0_8px_20px_-16px_oklch(0.22_0.02_258/0.45)] backdrop-blur-none",
@@ -97,10 +97,10 @@ export function TaskCard({ task, index, subtaskCount, onClick, dndEnabled = true
         </Badge>
         {/* Show actual hours for done tasks, estimated hours for others */}
         {isDone ? (
-          task.actual_hours ? (
+          task.actual_hours != null ? (
             <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
               <Clock className="h-3 w-3" />
-              {formatHours(task.actual_hours)}
+              {task.actual_hours === 0 ? "0h" : formatHours(task.actual_hours)}
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs text-destructive">
