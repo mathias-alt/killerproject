@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpDown, Filter, Clock, CheckSquare, Calendar } from "lucide-react";
+import { ArrowUpDown, Filter, Clock, CheckSquare, Calendar, Eye } from "lucide-react";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
 import type { TaskWithProject, TaskPriority } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
@@ -77,19 +77,15 @@ export default function TodayPage() {
     return counts;
   }, [tasks]);
 
-  // Filter and sort tasks
-  const todayTasks = useMemo(() => {
+  // Helper function to filter and sort tasks by status
+  const filterAndSortTasks = (status: "in_progress" | "in_review") => {
     const today = startOfDay(new Date());
 
     return tasks
       .filter((task) => {
-        // Only in_progress tasks
-        if (task.status !== "in_progress") return false;
-        // Exclude subtasks
+        if (task.status !== status) return false;
         if (task.parent_task_id) return false;
-        // Project filter
         if (projectFilter !== "all" && task.project_id !== projectFilter) return false;
-        // Include if: no dates set, or start_date <= today, or end_date includes today
         if (!task.start_date && !task.end_date) return true;
         if (task.start_date) {
           const startDate = startOfDay(new Date(task.start_date));
@@ -101,12 +97,15 @@ export default function TodayPage() {
         if (sortBy === "priority") {
           return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
         }
-        // Sort by due date
         const dateA = a.end_date ? new Date(a.end_date).getTime() : Infinity;
         const dateB = b.end_date ? new Date(b.end_date).getTime() : Infinity;
         return dateA - dateB;
       });
-  }, [tasks, sortBy, projectFilter]);
+  };
+
+  // Filter and sort tasks
+  const inProgressTasks = useMemo(() => filterAndSortTasks("in_progress"), [tasks, sortBy, projectFilter]);
+  const inReviewTasks = useMemo(() => filterAndSortTasks("in_review"), [tasks, sortBy, projectFilter]);
 
   if (loading) {
     return <div className="p-8 text-muted-foreground">Loading tasks...</div>;
@@ -166,92 +165,176 @@ export default function TodayPage() {
           </div>
 
           <span className="text-xs text-muted-foreground sm:ml-auto">
-            {todayTasks.length} {todayTasks.length === 1 ? "task" : "tasks"}
+            {inProgressTasks.length + inReviewTasks.length} tasks
           </span>
         </div>
 
-        {/* Task list */}
-        <div className="divide-y divide-border/50">
-          {todayTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <CheckSquare className="h-12 w-12 text-muted-foreground/30" />
-              <p className="mt-4 text-lg font-medium text-muted-foreground">All caught up!</p>
-              <p className="mt-1 text-sm text-muted-foreground/70">
-                No tasks in progress for today.
-              </p>
-            </div>
-          ) : (
-            todayTasks.map((task) => {
-              const subtaskCount = subtaskCounts[task.id];
-              const isOverdue = task.end_date && isBefore(new Date(task.end_date), startOfDay(new Date()));
-              const isDueToday = task.end_date && isToday(new Date(task.end_date));
+        {/* In Progress section */}
+        <div className="border-b border-border/50">
+          <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 sm:px-6">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-medium">In Progress</span>
+            <span className="text-xs text-muted-foreground">({inProgressTasks.length})</span>
+          </div>
+          <div className="divide-y divide-border/50">
+            {inProgressTasks.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No tasks in progress
+              </div>
+            ) : (
+              inProgressTasks.map((task) => {
+                const subtaskCount = subtaskCounts[task.id];
+                const isOverdue = task.end_date && isBefore(new Date(task.end_date), startOfDay(new Date()));
+                const isDueToday = task.end_date && isToday(new Date(task.end_date));
 
-              return (
-                <div
-                  key={task.id}
-                  className="flex cursor-pointer items-start gap-4 px-4 py-4 transition-colors hover:bg-muted/30 sm:px-6"
-                  onClick={() => {
-                    setSelectedTask(task);
-                    setDialogOpen(true);
-                  }}
-                >
-                  {/* Project color indicator */}
+                return (
                   <div
-                    className="mt-1.5 h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: task.project?.color ?? "#666" }}
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{task.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {task.project?.name ?? "No project"}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className={cn("shrink-0 text-xs", priorityColors[task.priority])}>
-                        {task.priority}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      {task.estimated_hours && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatHours(task.estimated_hours)}
-                        </span>
-                      )}
-                      {subtaskCount && subtaskCount.total > 0 && (
-                        <span className="flex items-center gap-1">
-                          <CheckSquare className="h-3 w-3" />
-                          {subtaskCount.completed}/{subtaskCount.total}
-                        </span>
-                      )}
-                      {task.end_date && (
-                        <span className={cn(
-                          "flex items-center gap-1",
-                          isOverdue && "text-destructive",
-                          isDueToday && "text-amber-600 dark:text-amber-400"
-                        )}>
-                          <Calendar className="h-3 w-3" />
-                          {isOverdue ? "Overdue" : isDueToday ? "Due today" : format(new Date(task.end_date), "MMM d")}
-                        </span>
-                      )}
-                      {task.assignee && (
-                        <div className="flex items-center gap-1.5">
-                          <Avatar className="h-4 w-4">
-                            <AvatarImage src={task.assignee.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-[8px]">{getInitials(task.assignee.full_name)}</AvatarFallback>
-                          </Avatar>
-                          <span>{task.assignee.full_name}</span>
+                    key={task.id}
+                    className="flex cursor-pointer items-start gap-4 px-4 py-4 transition-colors hover:bg-muted/30 sm:px-6"
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <div
+                      className="mt-1.5 h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: task.project?.color ?? "#666" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {task.project?.name ?? "No project"}
+                          </p>
                         </div>
-                      )}
+                        <Badge variant="secondary" className={cn("shrink-0 text-xs", priorityColors[task.priority])}>
+                          {task.priority}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        {task.estimated_hours && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatHours(task.estimated_hours)}
+                          </span>
+                        )}
+                        {subtaskCount && subtaskCount.total > 0 && (
+                          <span className="flex items-center gap-1">
+                            <CheckSquare className="h-3 w-3" />
+                            {subtaskCount.completed}/{subtaskCount.total}
+                          </span>
+                        )}
+                        {task.end_date && (
+                          <span className={cn(
+                            "flex items-center gap-1",
+                            isOverdue && "text-destructive",
+                            isDueToday && "text-amber-600 dark:text-amber-400"
+                          )}>
+                            <Calendar className="h-3 w-3" />
+                            {isOverdue ? "Overdue" : isDueToday ? "Due today" : format(new Date(task.end_date), "MMM d")}
+                          </span>
+                        )}
+                        {task.assignee && (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar className="h-4 w-4">
+                              <AvatarImage src={task.assignee.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[8px]">{getInitials(task.assignee.full_name)}</AvatarFallback>
+                            </Avatar>
+                            <span>{task.assignee.full_name}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* In Review section */}
+        <div>
+          <div className="flex items-center gap-2 bg-muted/30 px-4 py-2 sm:px-6">
+            <Eye className="h-4 w-4 text-violet-500" />
+            <span className="text-sm font-medium">In Review</span>
+            <span className="text-xs text-muted-foreground">({inReviewTasks.length})</span>
+          </div>
+          <div className="divide-y divide-border/50">
+            {inReviewTasks.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No tasks in review
+              </div>
+            ) : (
+              inReviewTasks.map((task) => {
+                const subtaskCount = subtaskCounts[task.id];
+                const isOverdue = task.end_date && isBefore(new Date(task.end_date), startOfDay(new Date()));
+                const isDueToday = task.end_date && isToday(new Date(task.end_date));
+
+                return (
+                  <div
+                    key={task.id}
+                    className="flex cursor-pointer items-start gap-4 px-4 py-4 transition-colors hover:bg-muted/30 sm:px-6"
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <div
+                      className="mt-1.5 h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: task.project?.color ?? "#666" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {task.project?.name ?? "No project"}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className={cn("shrink-0 text-xs", priorityColors[task.priority])}>
+                          {task.priority}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        {task.estimated_hours && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatHours(task.estimated_hours)}
+                          </span>
+                        )}
+                        {subtaskCount && subtaskCount.total > 0 && (
+                          <span className="flex items-center gap-1">
+                            <CheckSquare className="h-3 w-3" />
+                            {subtaskCount.completed}/{subtaskCount.total}
+                          </span>
+                        )}
+                        {task.end_date && (
+                          <span className={cn(
+                            "flex items-center gap-1",
+                            isOverdue && "text-destructive",
+                            isDueToday && "text-amber-600 dark:text-amber-400"
+                          )}>
+                            <Calendar className="h-3 w-3" />
+                            {isOverdue ? "Overdue" : isDueToday ? "Due today" : format(new Date(task.end_date), "MMM d")}
+                          </span>
+                        )}
+                        {task.assignee && (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar className="h-4 w-4">
+                              <AvatarImage src={task.assignee.avatar_url ?? undefined} />
+                              <AvatarFallback className="text-[8px]">{getInitials(task.assignee.full_name)}</AvatarFallback>
+                            </Avatar>
+                            <span>{task.assignee.full_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
