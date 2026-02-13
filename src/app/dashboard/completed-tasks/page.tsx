@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
-import { CalendarIcon, CheckCircle2, Clock, TrendingUp, FolderOpen } from "lucide-react";
+import { CalendarIcon, CheckCircle2, Clock, TrendingUp, FolderOpen, AlertCircle } from "lucide-react";
 import { useAllTasks } from "@/hooks/use-all-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { useRealtimeAllTasks } from "@/hooks/use-realtime";
@@ -204,44 +204,52 @@ export default function CompletedTasksPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {completedTasks.map((task) => (
-            <Card key={task.id}>
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-                      <span className="font-medium truncate">{task.title}</span>
-                      <Badge variant="outline" className="shrink-0">
-                        {TASK_PRIORITY_LABELS[task.priority]}
-                      </Badge>
-                    </div>
-                    {task.project && (
-                      <div className="mt-1 flex items-center gap-2 ml-6">
-                        <div
-                          className="h-2 w-2 rounded-full shrink-0"
-                          style={{ backgroundColor: task.project.color }}
-                        />
-                        <span className="text-sm text-muted-foreground truncate">
-                          {task.project.name}
-                        </span>
+          {completedTasks.map((task) => {
+            const missingHours = !task.actual_hours;
+            return (
+              <Card key={task.id} className={cn(missingHours && "border-destructive border-2")}>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                        <span className="font-medium truncate">{task.title}</span>
+                        <Badge variant="outline" className="shrink-0">
+                          {TASK_PRIORITY_LABELS[task.priority]}
+                        </Badge>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(task.completed_at!), "MMM d, yyyy")}
-                    </span>
-                    {task.actual_hours != null && task.actual_hours > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {task.actual_hours}h logged
+                      {task.project && (
+                        <div className="mt-1 flex items-center gap-2 ml-6">
+                          <div
+                            className="h-2 w-2 rounded-full shrink-0"
+                            style={{ backgroundColor: task.project.color }}
+                          />
+                          <span className="text-sm text-muted-foreground truncate">
+                            {task.project.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(task.completed_at!), "MMM d, yyyy")}
                       </span>
-                    )}
+                      {task.actual_hours ? (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                          {task.actual_hours}h logged
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs text-destructive">
+                          <AlertCircle className="h-3 w-3" />
+                          No hours
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

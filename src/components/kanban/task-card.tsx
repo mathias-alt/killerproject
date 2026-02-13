@@ -5,7 +5,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
-import { Clock, CheckSquare } from "lucide-react";
+import { Clock, CheckSquare, AlertCircle } from "lucide-react";
 import type { TaskWithAssignee, TaskWithProject } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { CSSProperties } from "react";
@@ -66,8 +66,14 @@ export function TaskCard({ task, index, subtaskCount, onClick, dndEnabled = true
     movedDuringPointerRef.current = false;
   };
 
-  const baseClassName =
-    "rounded-xl border border-border/70 bg-card/90 p-3 text-card-foreground shadow-[0_8px_20px_-16px_oklch(0.22_0.02_258/0.45)] backdrop-blur-none";
+  // Check if task is done but missing actual hours
+  const isDone = task.status === "done";
+  const missingActualHours = isDone && !task.actual_hours;
+
+  const baseClassName = cn(
+    "rounded-xl border bg-card/90 p-3 text-card-foreground shadow-[0_8px_20px_-16px_oklch(0.22_0.02_258/0.45)] backdrop-blur-none",
+    missingActualHours ? "border-destructive border-2" : "border-border/70"
+  );
   const interactiveClassName =
     "cursor-pointer transition-shadow duration-150 hover:shadow-md";
 
@@ -89,11 +95,26 @@ export function TaskCard({ task, index, subtaskCount, onClick, dndEnabled = true
         <Badge variant="secondary" className={cn("text-xs", priorityColors[task.priority])}>
           {task.priority}
         </Badge>
-        {task.estimated_hours && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {formatHours(task.estimated_hours)}
-          </span>
+        {/* Show actual hours for done tasks, estimated hours for others */}
+        {isDone ? (
+          task.actual_hours ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+              <Clock className="h-3 w-3" />
+              {formatHours(task.actual_hours)}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="h-3 w-3" />
+              No hours
+            </span>
+          )
+        ) : (
+          task.estimated_hours && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {formatHours(task.estimated_hours)}
+            </span>
+          )
         )}
         {subtaskCount && subtaskCount.total > 0 && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
