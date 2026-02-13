@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, TooltipProps } from "recharts";
-import { format, parseISO, startOfMonth } from "date-fns";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { format, parseISO } from "date-fns";
 import type { Project, TaskWithProject } from "@/lib/types/database";
 import { TASK_STATUS_LABELS, TASK_STATUSES } from "@/lib/types/database";
+import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
   backlog: "#94a3b8",
@@ -14,12 +16,33 @@ const STATUS_COLORS: Record<string, string> = {
   done: "#4ade80",
 };
 
-interface TaskChartProps {
+interface BaseChartProps {
+  className?: string;
+  chartHeightClassName?: string;
+}
+
+interface TaskChartProps extends BaseChartProps {
   tasks: TaskWithProject[];
   projects: Project[];
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface SingleTaskChartProps extends BaseChartProps {
+  tasks: TaskWithProject[];
+}
+
+interface ChartTooltipPayload {
+  name?: string;
+  value?: number;
+  color?: string;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: ChartTooltipPayload[];
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
@@ -29,21 +52,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const HoursTooltip = ({ active, payload, label }: any) => {
+const HoursTooltip = ({ active, payload, label }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
       <p className="font-medium">{label}</p>
-      {payload.map((p: any) => (
-        <p key={p.name} className="text-muted-foreground" style={{ color: p.color }}>
-          {p.name}: {p.value}h
+      {payload.map((item, index) => (
+        <p
+          key={`${item.name ?? "series"}-${index}`}
+          className="text-muted-foreground"
+          style={{ color: item.color }}
+        >
+          {item.name}: {item.value}h
         </p>
       ))}
     </div>
   );
 };
 
-const PieTooltip = ({ active, payload }: any) => {
+const PieTooltip = ({ active, payload }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
@@ -53,7 +80,54 @@ const PieTooltip = ({ active, payload }: any) => {
   );
 };
 
-export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
+function ChartViewport({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasSize, setHasSize] = useState(false);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    let frame = 0;
+    const updateSize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const { width, height } = element.getBoundingClientRect();
+        setHasSize(width > 0 && height > 0);
+      });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        cancelAnimationFrame(frame);
+      };
+    }
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className={cn("min-w-0", className)}>
+      {hasSize ? children : <div className="h-full w-full" />}
+    </div>
+  );
+}
+
+export function TaskStatusChart({ tasks, className, chartHeightClassName }: SingleTaskChartProps) {
   const data = TASK_STATUSES.map((status) => ({
     name: TASK_STATUS_LABELS[status],
     count: tasks.filter((t) => t.status === status).length,
@@ -61,14 +135,14 @@ export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
   }));
 
   return (
-    <Card className="col-span-4">
+    <Card className={cn("min-w-0 border-border/70 bg-card/85", className)}>
       <CardHeader>
         <CardTitle>Tasks by Status</CardTitle>
         <CardDescription>Distribution of tasks across statuses</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="min-w-0">
+        <ChartViewport className={chartHeightClassName ?? "h-[250px] min-w-0 sm:h-[320px]"}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <BarChart data={data} style={{ outline: "none" }}>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
               <XAxis
@@ -95,13 +169,13 @@ export function TaskStatusChart({ tasks }: { tasks: TaskWithProject[] }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartViewport>
       </CardContent>
     </Card>
   );
 }
 
-export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
+export function TasksByProjectChart({ tasks, projects, className, chartHeightClassName }: TaskChartProps) {
   const data = projects
     .map((project) => ({
       name: project.name,
@@ -111,21 +185,21 @@ export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
     .filter((d) => d.count > 0);
 
   return (
-    <Card className="col-span-3">
+    <Card className={cn("min-w-0 border-border/70 bg-card/85", className)}>
       <CardHeader>
         <CardTitle>Tasks by Project</CardTitle>
         <CardDescription>Task count per project</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="min-w-0">
+        <ChartViewport className={chartHeightClassName ?? "h-[340px] min-w-0 sm:h-[430px]"}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <PieChart style={{ outline: "none" }}>
               <Pie
                 data={data}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={100}
+                innerRadius="52%"
+                outerRadius="78%"
                 paddingAngle={2}
                 dataKey="count"
                 stroke="none"
@@ -137,17 +211,18 @@ export function TasksByProjectChart({ tasks, projects }: TaskChartProps) {
               </Pie>
               <Tooltip content={<PieTooltip />} />
               <Legend
+                verticalAlign="bottom"
                 formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
               />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartViewport>
       </CardContent>
     </Card>
   );
 }
 
-export function HoursByMonthChart({ tasks }: { tasks: TaskWithProject[] }) {
+export function HoursByMonthChart({ tasks, className, chartHeightClassName }: SingleTaskChartProps) {
   const monthMap = new Map<string, { estimated: number; actual: number }>();
 
   tasks.forEach((t) => {
@@ -177,14 +252,14 @@ export function HoursByMonthChart({ tasks }: { tasks: TaskWithProject[] }) {
   if (data.length === 0) return null;
 
   return (
-    <Card className="col-span-4">
+    <Card className={cn("min-w-0 border-border/70 bg-card/85", className)}>
       <CardHeader>
         <CardTitle>Hours by Month</CardTitle>
         <CardDescription>Estimated vs actual hours</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="min-w-0">
+        <ChartViewport className={chartHeightClassName ?? "h-[250px] min-w-0 sm:h-[320px]"}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <BarChart data={data} style={{ outline: "none" }}>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
               <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} />
@@ -195,13 +270,13 @@ export function HoursByMonthChart({ tasks }: { tasks: TaskWithProject[] }) {
               <Bar dataKey="actual" fill="#4ade80" radius={[4, 4, 0, 0]} style={{ outline: "none" }} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartViewport>
       </CardContent>
     </Card>
   );
 }
 
-export function HoursByProjectChart({ tasks, projects }: TaskChartProps) {
+export function HoursByProjectChart({ tasks, projects, className, chartHeightClassName }: TaskChartProps) {
   const data = projects
     .map((project) => {
       const projectTasks = tasks.filter((t) => t.project_id === project.id);
@@ -219,25 +294,25 @@ export function HoursByProjectChart({ tasks, projects }: TaskChartProps) {
   if (data.length === 0) return null;
 
   return (
-    <Card className="col-span-3">
+    <Card className={cn("min-w-0 border-border/70 bg-card/85", className)}>
       <CardHeader>
         <CardTitle>Hours by Project</CardTitle>
         <CardDescription>Estimated vs actual per project</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="min-w-0">
+        <ChartViewport className={chartHeightClassName ?? "h-[330px] min-w-0 sm:h-[420px]"}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <BarChart data={data} style={{ outline: "none" }} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
               <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} />
-              <YAxis type="category" dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} width={100} />
+              <YAxis type="category" dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="currentColor" opacity={0.5} width={120} />
               <Tooltip content={<HoursTooltip />} cursor={{ fill: "currentColor", opacity: 0.05 }} />
               <Legend formatter={(value) => <span className="text-sm text-foreground">{value === "estimated" ? "Estimated" : "Actual"}</span>} />
               <Bar dataKey="estimated" fill="#60a5fa" radius={[0, 4, 4, 0]} style={{ outline: "none" }} />
               <Bar dataKey="actual" fill="#4ade80" radius={[0, 4, 4, 0]} style={{ outline: "none" }} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartViewport>
       </CardContent>
     </Card>
   );

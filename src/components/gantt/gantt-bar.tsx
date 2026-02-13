@@ -59,12 +59,14 @@ export function GanttBar({
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  if (!task.start_date || !task.end_date) return null;
+  const hasDates = Boolean(task.start_date && task.end_date);
+  const startMs = hasDates ? new Date(task.start_date!).getTime() : 0;
+  const endMs = hasDates ? new Date(task.end_date!).getTime() : 0;
+  const startDate = hasDates ? new Date(startMs) : timelineStart;
+  const endDate = hasDates ? new Date(endMs) : timelineStart;
 
-  const start = new Date(task.start_date);
-  const end = new Date(task.end_date);
-  const offsetDays = differenceInDays(start, timelineStart);
-  const durationDays = differenceInDays(end, start) + 1;
+  const offsetDays = differenceInDays(startDate, timelineStart);
+  const durationDays = differenceInDays(endDate, startDate) + 1;
   const left = offsetDays * dayWidth;
   const width = durationDays * dayWidth;
 
@@ -85,6 +87,7 @@ export function GanttBar({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, mode: "move" | "resize") => {
+      if (!hasDates) return;
       if (mode === "move" && !onDragEnd) return;
       if (mode === "resize" && !onResizeEnd) return;
       e.stopPropagation();
@@ -116,15 +119,15 @@ export function GanttBar({
         if (daysDelta === 0) return;
 
         if (mode === "move") {
-          const newStart = new Date(start);
+          const newStart = new Date(startMs);
           newStart.setDate(newStart.getDate() + daysDelta);
-          const newEnd = new Date(end);
+          const newEnd = new Date(endMs);
           newEnd.setDate(newEnd.getDate() + daysDelta);
           onDragEnd?.(newStart.toISOString().split("T")[0], newEnd.toISOString().split("T")[0]);
         } else {
-          const newEnd = new Date(end);
+          const newEnd = new Date(endMs);
           newEnd.setDate(newEnd.getDate() + daysDelta);
-          if (newEnd >= start) {
+          if (newEnd.getTime() >= startMs) {
             onResizeEnd?.(newEnd.toISOString().split("T")[0]);
           }
         }
@@ -133,7 +136,7 @@ export function GanttBar({
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [dayWidth, left, width, start, end, onDragEnd, onResizeEnd]
+    [dayWidth, endMs, hasDates, left, onDragEnd, onResizeEnd, startMs, width]
   );
 
   const handleDependencyHandleMouseDown = useCallback(
@@ -155,16 +158,18 @@ export function GanttBar({
 
   const isDone = task.status === "done";
 
+  if (!hasDates) return null;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
           ref={barRef}
           className={cn(
-            "absolute rounded cursor-pointer flex items-center overflow-visible select-none shadow-sm transition-shadow",
+            "absolute flex cursor-pointer items-center overflow-visible rounded-md select-none shadow-sm transition-all",
             !projectColor && statusColor.bg,
-            isDragging && "opacity-80 shadow-md",
-            isDependencyDragging && isValidDropTarget && "ring-2 ring-primary ring-offset-1",
+            isDragging && "opacity-80 shadow-md scale-[0.995]",
+            isDependencyDragging && isValidDropTarget && "ring-2 ring-primary ring-offset-1 ring-offset-background",
             isDependencyDragging && !isValidDropTarget && "opacity-50"
           )}
           style={{
@@ -210,7 +215,7 @@ export function GanttBar({
           {/* Left dependency handle (for incoming connections) */}
           {showHandles && onDependencyDragStart && (
             <div
-              className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background border-2 border-muted-foreground rounded-full cursor-crosshair hover:border-primary hover:bg-primary/20 z-20 transition-colors"
+              className="absolute -left-2 top-1/2 z-20 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-muted-foreground bg-background transition-colors hover:border-primary hover:bg-primary/20"
               onMouseDown={(e) => handleDependencyHandleMouseDown(e, "start")}
               title="Drag to create dependency"
             />
@@ -224,7 +229,7 @@ export function GanttBar({
           {/* Right dependency handle (for outgoing connections) */}
           {showHandles && onDependencyDragStart && (
             <div
-              className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-background border-2 border-muted-foreground rounded-full cursor-crosshair hover:border-primary hover:bg-primary/20 z-20 transition-colors"
+              className="absolute -right-2 top-1/2 z-20 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-muted-foreground bg-background transition-colors hover:border-primary hover:bg-primary/20"
               onMouseDown={(e) => handleDependencyHandleMouseDown(e, "end")}
               title="Drag to create dependency"
             />
@@ -233,7 +238,7 @@ export function GanttBar({
           {/* Resize handle */}
           {onResizeEnd && (
             <div
-              className="absolute right-0 top-0 h-full w-2 cursor-ew-resize hover:bg-black/10 z-10"
+              className="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize hover:bg-black/10"
               onMouseDown={(e) => handleMouseDown(e, "resize")}
             />
           )}

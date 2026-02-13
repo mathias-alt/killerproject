@@ -64,15 +64,17 @@ export function StatsCards({ projects, tasks }: StatsCardsProps) {
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <Card key={stat.title} className="h-full border-border/70 bg-card/85">
+            <CardHeader className="flex flex-row items-start justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
+              <div className="rounded-lg bg-primary/10 p-1.5 text-primary">
+                <Icon className="h-4 w-4" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="text-2xl font-bold tracking-tight">{stat.value}</div>
               <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
             </CardContent>
           </Card>

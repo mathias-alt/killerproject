@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { TimelyTimeEntry, TimelyTimeEntryWithTask, TimelyToken } from "@/lib/types/database";
+import type { TimelyTimeEntryWithTask } from "@/lib/types/database";
 
 export function useTimely() {
   const [entries, setEntries] = useState<TimelyTimeEntryWithTask[]>([]);
@@ -28,7 +28,10 @@ export function useTimely() {
   // Fetch entries with linked task info
   const fetchEntries = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from("timely_time_entries")
@@ -44,7 +47,12 @@ export function useTimely() {
       .order("date", { ascending: false });
 
     if (error) {
-      console.error("Error fetching entries:", error);
+      // Local environments may not have Timely tables migrated yet.
+      if (error.code === "PGRST205") {
+        setEntries([]);
+      } else {
+        console.error("Error fetching entries:", error);
+      }
     } else {
       setEntries((data as TimelyTimeEntryWithTask[]) ?? []);
     }
@@ -58,15 +66,7 @@ export function useTimely() {
 
   // Get OAuth URL
   const getAuthUrl = () => {
-    const clientId = process.env.NEXT_PUBLIC_TIMELY_CLIENT_ID;
-    const redirectUri = process.env.NEXT_PUBLIC_TIMELY_REDIRECT_URI;
-
-    if (!clientId || !redirectUri) {
-      console.error("Missing Timely OAuth config");
-      return null;
-    }
-
-    return `https://api.timelyapp.com/1.1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+    return "/api/timely/authorize";
   };
 
   // Sync entries from Timely
@@ -99,6 +99,7 @@ export function useTimely() {
         throw new Error(data.error || "Disconnect failed");
       }
       setIsConnected(false);
+      setEntries([]);
     } catch (error) {
       console.error("Disconnect error:", error);
       throw error;
@@ -133,7 +134,7 @@ export function useTimely() {
       .eq("linked_task_id", taskId)
       .eq("user_id", user.id);
 
-    const totalHours = (linkedEntries ?? []).reduce((sum, e) => sum + Number(e.hours), 0) + Number(entry.hours);
+    const totalHours = (linkedEntries ?? []).reduce((sum, e) => sum + Number(e.hours), 0);
 
     // Update the task's actual_hours
     const { error: taskError } = await supabase

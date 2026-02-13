@@ -8,18 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, CheckCircle2, Camera, User } from "lucide-react";
-import type { Profile } from "@/lib/types/database";
+import { AlertCircle, CheckCircle2, Camera, Eye, EyeOff } from "lucide-react";
 
 export default function ProfilePage() {
   const supabase = createClient();
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -42,7 +41,6 @@ export default function ProfilePage() {
         .single();
 
       if (data) {
-        setProfile(data);
         setFullName(data.full_name ?? "");
         setAvatarUrl(data.avatar_url);
       }
@@ -114,7 +112,6 @@ export default function ProfilePage() {
       setError(passwordError.message);
     } else {
       setSuccess("Password changed successfully");
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -270,27 +267,53 @@ export default function ProfilePage() {
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                minLength={6}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  className="pr-10"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setShowNewPassword((visible) => !visible)}
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showNewPassword}
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat new password"
-                minLength={6}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  className="pr-10"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat new password"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showConfirmPassword}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <Button type="submit" disabled={changingPassword}>
               {changingPassword ? "Changing..." : "Change Password"}

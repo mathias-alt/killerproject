@@ -1,32 +1,158 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// This endpoint receives inbound emails from a mail service (e.g. SendGrid, Mailgun, Postmark)
-// and creates ideas from them. The email subject becomes the idea title,
-// and the body becomes the description.
-//
-// Setup:
-// 1. Set up an email service to forward emails to this webhook
-// 2. Set INBOUND_EMAIL_SECRET in your .env for verification
-// 3. The sender's email must match a user in the system
-//
-// For SendGrid Inbound Parse: Configure your domain's MX record and set the webhook URL
-// For Mailgun: Set up a route that forwards to this URL
-// For Postmark: Configure an inbound stream pointing to this URL
+const MAX_REQUEST_BYTES = 1_000_000;
+const MAX_SUBJECT_LENGTH = 180;
+const MAX_BODY_LENGTH = 5_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+const USER_CACHE_TTL_MS = 5 * 60_000;
+
+const requestWindowByIp = new Map<string, { count: number; resetAt: number }>();
+const knownUserCache = new Map<string, { id: string; expiresAt: number }>();
+
+function safeEqual(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isRateLimited(ip: string) {
+  const now = Date.now();
+  const state = requestWindowByIp.get(ip);
+
+  if (!state || now > state.resetAt) {
+    requestWindowByIp.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  state.count += 1;
+  requestWindowByIp.set(ip, state);
+  return state.count > RATE_LIMIT_MAX;
+}
+
+function getRequestIp(request: NextRequest) {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() || "unknown";
+  }
+  return request.headers.get("x-real-ip") || "unknown";
+}
+
+function sanitizeText(input: string, maxLength: number) {
+  return input
+    .replace(/[^\S\r\n]+/g, " ")
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function stripHtml(input: string) {
+  return input.replace(/<[^>]*>/g, "");
+}
+
+function normalizeEmail(input: unknown) {
+  if (typeof input !== "string") {
+    return null;
+  }
+
+  let value = input.trim();
+  if (!value) {
+    return null;
+  }
+
+  const bracketMatch = value.match(/<([^>]+)>/);
+  if (bracketMatch?.[1]) {
+    value = bracketMatch[1];
+  }
+
+  value = value.toLowerCase();
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return isValid ? value : null;
+}
+
+async function findUserIdByEmail(
+  supabase: {
+    auth: {
+      admin: {
+        listUsers: (params: {
+          page: number;
+          perPage: number;
+        }) => Promise<{
+          data: { users: Array<{ id: string; email?: string | null }> };
+          error: unknown;
+        }>;
+      };
+    };
+  },
+  email: string
+) {
+  const cached = knownUserCache.get(email);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.id;
+  }
+
+  let page = 1;
+  const perPage = 200;
+
+  while (page <= 20) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      throw error;
+    }
+
+    const user = data.users.find((candidate) => candidate.email?.toLowerCase() === email);
+    if (user?.id) {
+      knownUserCache.set(email, { id: user.id, expiresAt: now + USER_CACHE_TTL_MS });
+      return user.id;
+    }
+
+    if (data.users.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify the webhook secret (passed as query param or header)
-    const secret = request.nextUrl.searchParams.get("secret") ??
-      request.headers.get("x-webhook-secret");
+    const contentLength = Number(request.headers.get("content-length") || "0");
+    if (contentLength > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+
+    const requestIp = getRequestIp(request);
+    if (isRateLimited(requestIp)) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
 
     const expectedSecret = process.env.INBOUND_EMAIL_SECRET;
+    const providedSecret =
+      request.headers.get("x-webhook-secret") ?? request.nextUrl.searchParams.get("secret");
 
-    if (!expectedSecret || secret !== expectedSecret) {
+    if (!expectedSecret || !providedSecret || !safeEqual(providedSecret, expectedSecret)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse the request body - support both JSON and form data
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+
     let senderEmail: string | null = null;
     let subject: string | null = null;
     let body: string | null = null;
@@ -34,45 +160,37 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get("content-type") || "";
 
     if (contentType.includes("application/json")) {
-      // JSON format (Postmark, custom)
       const json = await request.json();
-
-      // Postmark sends FromFull.Email as a clean email address
-      senderEmail =
+      const fromCandidate =
         json.FromFull?.Email ||
         json.from ||
         json.From ||
         json.sender ||
-        json.envelope?.from;
-      subject = json.Subject || json.subject;
-      body = json.TextBody || json.text || json.body || json.HtmlBody || json.html || "";
+        json.envelope?.from ||
+        (typeof json.from === "object" ? json.from?.email || json.from?.address : null);
 
-      // Handle nested from field (non-Postmark services)
-      if (typeof senderEmail === "object" && senderEmail !== null) {
-        senderEmail = (senderEmail as Record<string, string>).email || (senderEmail as Record<string, string>).address;
-      }
+      const textBodyCandidate =
+        json.TextBody || json.text || json.body || json.HtmlBody || json.html || "";
 
-      // Handle "Name <email>" format in From string
-      if (typeof senderEmail === "string" && senderEmail.includes("<")) {
-        const emailMatch = senderEmail.match(/<([^>]+)>/);
-        if (emailMatch) {
-          senderEmail = emailMatch[1];
-        }
-      }
-    } else if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
-      // Form data format (SendGrid Inbound Parse)
+      senderEmail = normalizeEmail(fromCandidate);
+      subject = sanitizeText(String(json.Subject || json.subject || ""), MAX_SUBJECT_LENGTH) || null;
+      body = sanitizeText(stripHtml(String(textBodyCandidate || "")), MAX_BODY_LENGTH) || null;
+    } else if (
+      contentType.includes("multipart/form-data") ||
+      contentType.includes("application/x-www-form-urlencoded")
+    ) {
       const formData = await request.formData();
-      senderEmail = formData.get("from")?.toString() || formData.get("sender")?.toString() || null;
-      subject = formData.get("subject")?.toString() || null;
-      body = formData.get("text")?.toString() || formData.get("html")?.toString() || "";
-
-      // SendGrid sends "from" as "Name <email@example.com>"
-      if (senderEmail) {
-        const emailMatch = senderEmail.match(/<([^>]+)>/);
-        if (emailMatch) {
-          senderEmail = emailMatch[1];
-        }
-      }
+      senderEmail = normalizeEmail(
+        formData.get("from")?.toString() || formData.get("sender")?.toString() || ""
+      );
+      subject =
+        sanitizeText(formData.get("subject")?.toString() || "", MAX_SUBJECT_LENGTH) || null;
+      body = sanitizeText(
+        stripHtml(formData.get("text")?.toString() || formData.get("html")?.toString() || ""),
+        MAX_BODY_LENGTH
+      ) || null;
+    } else {
+      return NextResponse.json({ error: "Unsupported content type" }, { status: 415 });
     }
 
     if (!senderEmail) {
@@ -80,66 +198,38 @@ export async function POST(request: NextRequest) {
     }
 
     if (!subject) {
-      return NextResponse.json({ error: "No subject found" }, { status: 400 });
+      return NextResponse.json({ error: "No valid subject found" }, { status: 400 });
     }
 
-    // Use service role to bypass RLS
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const userId = await findUserIdByEmail(supabase, senderEmail);
 
-    // Find user by email
-    const { data: users, error: userError } = await supabase.auth.admin.listUsers();
-
-    if (userError) {
-      console.error("Error listing users:", userError);
-      return NextResponse.json({ error: "Server error" }, { status: 500 });
-    }
-
-    const user = users.users.find(
-      (u) => u.email?.toLowerCase() === senderEmail!.toLowerCase()
-    );
-
-    if (!user) {
-      console.warn(`Email from unknown user: ${senderEmail}`);
+    if (!userId) {
       return NextResponse.json({ error: "Unknown sender" }, { status: 403 });
     }
 
-    // Clean up body text
-    let cleanBody = body?.trim() || null;
-    if (cleanBody) {
-      // Remove HTML tags if present
-      cleanBody = cleanBody.replace(/<[^>]*>/g, "").trim();
-      // Limit length
-      if (cleanBody.length > 5000) {
-        cleanBody = cleanBody.substring(0, 5000) + "...";
-      }
-    }
-
-    // Create the idea
     const { data: idea, error: ideaError } = await supabase
       .from("ideas")
       .insert({
-        title: subject.trim(),
-        description: cleanBody,
-        author_id: user.id,
+        title: subject,
+        description: body,
+        author_id: userId,
       })
-      .select()
+      .select("id")
       .single();
 
-    if (ideaError) {
-      console.error("Error creating idea:", ideaError);
+    if (ideaError || !idea) {
+      console.error("Error creating idea from inbound email:", ideaError);
       return NextResponse.json({ error: "Failed to create idea" }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
       idea_id: idea.id,
-      message: `Idea "${subject}" created from email by ${senderEmail}`
+      message: "Idea created from inbound email",
     });
-  } catch (err) {
-    console.error("Inbound email error:", err);
+  } catch (error) {
+    console.error("Inbound email processing failed:", error);
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 }

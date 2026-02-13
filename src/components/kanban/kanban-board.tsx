@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { Column } from "./column";
 import { TaskDialog } from "@/components/tasks/task-dialog";
@@ -47,6 +47,7 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [dndEnabled, setDndEnabled] = useState(true);
 
   // Sorting & filtering state
   const [sortBy, setSortBy] = useState<SortOption>("order");
@@ -55,6 +56,19 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
     priority: "all",
     assigneeId: "all",
   });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const handleChange = () => {
+      setDndEnabled(!mediaQuery.matches);
+    };
+
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  const dndActive = dndEnabled && sortBy === "order";
 
   // Filter tasks (exclude subtasks from main view)
   const filteredTasks = useMemo(() => {
@@ -127,134 +141,155 @@ export function KanbanBoard({ tasks, projects, profiles, onCreateTask, onUpdateT
 
   return (
     <>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b bg-muted/30">
-        {/* Sort */}
-        <div className="flex items-center gap-2">
-          <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-[130px] h-8">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="order">Manual Order</SelectItem>
-              <SelectItem value="date">Due Date</SelectItem>
-              <SelectItem value="priority">Priority</SelectItem>
-              {projects && projects.length > 0 && (
-                <SelectItem value="project">Project</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="h-6 w-px bg-border" />
-
-        {/* Filters */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-
-          {/* Project filter */}
-          {projects && projects.length > 0 && (
-            <Select
-              value={filters.projectId}
-              onValueChange={(v) => setFilters((f) => ({ ...f, projectId: v }))}
-            >
-              <SelectTrigger className="w-[150px] h-8">
-                <SelectValue placeholder="All Projects" />
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_16px_40px_-30px_oklch(0.22_0.02_258/0.45)]">
+        <div className="flex flex-col gap-3 border-b border-border/70 bg-background/65 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-4">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="h-8 w-full sm:w-[130px]">
+                <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Projects</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: p.color }}
-                      />
-                      {p.name}
-                    </div>
-                  </SelectItem>
-                ))}
+                <SelectItem value="order">Manual Order</SelectItem>
+                <SelectItem value="date">Due Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                {projects && projects.length > 0 && (
+                  <SelectItem value="project">Project</SelectItem>
+                )}
               </SelectContent>
             </Select>
-          )}
+          </div>
 
-          {/* Priority filter */}
-          <Select
-            value={filters.priority}
-            onValueChange={(v) => setFilters((f) => ({ ...f, priority: v }))}
-          >
-            <SelectTrigger className="w-[120px] h-8">
-              <SelectValue placeholder="All Priorities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(
-                ([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
+          <div className="hidden h-6 w-px bg-border sm:block" />
 
-          {/* Assignee filter */}
-          {profiles && profiles.length > 0 && (
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+
+            {projects && projects.length > 0 && (
+              <Select
+                value={filters.projectId}
+                onValueChange={(v) => setFilters((filterState) => ({ ...filterState, projectId: v }))}
+              >
+                <SelectTrigger className="h-8 w-full sm:w-[150px]">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: project.color }}
+                        />
+                        {project.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Select
-              value={filters.assigneeId}
-              onValueChange={(v) => setFilters((f) => ({ ...f, assigneeId: v }))}
+              value={filters.priority}
+              onValueChange={(v) => setFilters((filterState) => ({ ...filterState, priority: v }))}
             >
-              <SelectTrigger className="w-[150px] h-8">
-                <SelectValue placeholder="All Assignees" />
+              <SelectTrigger className="h-8 w-full sm:w-[120px]">
+                <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Assignees</SelectItem>
-                {profiles.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.full_name ?? "Unknown"}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Priorities</SelectItem>
+                {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  )
+                )}
               </SelectContent>
             </Select>
-          )}
+
+            {profiles && profiles.length > 0 && (
+              <Select
+                value={filters.assigneeId}
+                onValueChange={(v) => setFilters((filterState) => ({ ...filterState, assigneeId: v }))}
+              >
+                <SelectTrigger className="h-8 w-full sm:w-[150px]">
+                  <SelectValue placeholder="All Assignees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Assignees</SelectItem>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name ?? "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto">
+            Showing {filteredTasks.length} of {tasks.filter((task) => !task.parent_task_id).length} tasks
+            {!dndEnabled && <span className="ml-2 text-muted-foreground/70">• På mobil flytter du status via oppgavekort</span>}
+            {dndEnabled && sortBy !== "order" && <span className="ml-2 text-muted-foreground/70">• Velg Manual Order for drag and drop</span>}
+          </div>
         </div>
 
-        {/* Active filter count */}
-        {(filters.projectId !== "all" ||
-          filters.priority !== "all" ||
-          filters.assigneeId !== "all") && (
-          <span className="text-xs text-muted-foreground">
-            Showing {filteredTasks.length} of {tasks.length} tasks
-          </span>
+        {dndActive ? (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div className="flex gap-3 overflow-x-auto bg-[linear-gradient(180deg,transparent,oklch(0.9_0.01_252/0.08))] p-3 sm:gap-4 sm:p-4">
+              {TASK_STATUSES.map((status) => {
+                const hours = getHoursForStatus(status);
+                return (
+                  <Column
+                    key={status}
+                    status={status}
+                    tasks={getTasksByStatus(status)}
+                  estimatedHours={hours.estimated}
+                  actualHours={hours.actual}
+                  subtaskCounts={subtaskCounts}
+                  dndEnabled={dndActive}
+                  onTaskClick={(task) => {
+                    setSelectedTask(task);
+                    setEditDialogOpen(true);
+                    }}
+                    onAddTask={(nextStatus) => {
+                      setNewTaskStatus(nextStatus);
+                      setCreateDialogOpen(true);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </DragDropContext>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto bg-[linear-gradient(180deg,transparent,oklch(0.9_0.01_252/0.08))] p-3 sm:gap-4 sm:p-4">
+            {TASK_STATUSES.map((status) => {
+              const hours = getHoursForStatus(status);
+              return (
+                <Column
+                  key={status}
+                  status={status}
+                  tasks={getTasksByStatus(status)}
+                  estimatedHours={hours.estimated}
+                  actualHours={hours.actual}
+                  subtaskCounts={subtaskCounts}
+                  dndEnabled={false}
+                  onTaskClick={(task) => {
+                    setSelectedTask(task);
+                    setEditDialogOpen(true);
+                  }}
+                  onAddTask={(nextStatus) => {
+                    setNewTaskStatus(nextStatus);
+                    setCreateDialogOpen(true);
+                  }}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
-
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto p-4">
-          {TASK_STATUSES.map((status) => {
-            const hours = getHoursForStatus(status);
-            return (
-              <Column
-                key={status}
-                status={status}
-                tasks={getTasksByStatus(status)}
-                estimatedHours={hours.estimated}
-                actualHours={hours.actual}
-                subtaskCounts={subtaskCounts}
-                onTaskClick={(task) => {
-                  setSelectedTask(task);
-                  setEditDialogOpen(true);
-                }}
-                onAddTask={(s) => {
-                  setNewTaskStatus(s);
-                  setCreateDialogOpen(true);
-                }}
-              />
-            );
-          })}
-        </div>
-      </DragDropContext>
 
       <TaskDialog
         open={editDialogOpen}

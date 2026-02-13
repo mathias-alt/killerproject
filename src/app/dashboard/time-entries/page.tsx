@@ -1,30 +1,41 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useTimely } from "@/hooks/use-timely";
 import { useAllTasks } from "@/hooks/use-all-tasks";
-import { useProjects } from "@/hooks/use-projects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
-  Clock,
-  Link2,
-  Unlink,
-  RefreshCw,
-  ExternalLink,
   AlertCircle,
   CheckCircle2,
+  Clock,
+  ExternalLink,
+  Link2,
+  RefreshCw,
   Search,
+  Unlink,
 } from "lucide-react";
-import type { TimelyTimeEntryWithTask, TaskWithProject } from "@/lib/types/database";
+import type { TaskWithProject, TimelyTimeEntryWithTask } from "@/lib/types/database";
 
 export default function TimeEntriesPage() {
   const {
@@ -39,7 +50,6 @@ export default function TimeEntriesPage() {
     unlinkEntry,
   } = useTimely();
   const { tasks } = useAllTasks();
-  const { projects } = useProjects();
 
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterLinked, setFilterLinked] = useState<string>("all");
@@ -48,7 +58,6 @@ export default function TimeEntriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Get unique Timely project names from entries
   const timelyProjects = useMemo(() => {
     const projectSet = new Set<string>();
     entries.forEach((entry) => {
@@ -57,7 +66,6 @@ export default function TimeEntriesPage() {
     return Array.from(projectSet).sort();
   }, [entries]);
 
-  // Filter entries
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       if (filterProject !== "all" && entry.project_name !== filterProject) return false;
@@ -67,7 +75,6 @@ export default function TimeEntriesPage() {
     });
   }, [entries, filterProject, filterLinked]);
 
-  // Filter tasks for linking dialog
   const filteredTasks = useMemo(() => {
     if (!taskSearch) return tasks;
     const search = taskSearch.toLowerCase();
@@ -78,22 +85,21 @@ export default function TimeEntriesPage() {
     );
   }, [tasks, taskSearch]);
 
-  // Calculate stats
   const stats = useMemo(() => {
     const total = entries.length;
-    const linked = entries.filter((e) => e.linked_task_id).length;
+    const linked = entries.filter((entry) => entry.linked_task_id).length;
     const unlinked = total - linked;
-    const totalHours = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+    const totalHours = entries.reduce((sum, entry) => sum + Number(entry.hours), 0);
     return { total, linked, unlinked, totalHours };
   }, [entries]);
 
   const handleConnect = () => {
     const url = getAuthUrl();
-    if (url) {
-      window.location.href = url;
-    } else {
+    if (!url) {
       setError("Timely integration is not configured");
+      return;
     }
+    window.location.href = url;
   };
 
   const handleSync = async () => {
@@ -141,150 +147,152 @@ export default function TimeEntriesPage() {
   };
 
   if (loading) {
-    return (
-      <div className="p-6 text-muted-foreground">Loading time entries...</div>
-    );
+    return <div className="p-8 text-muted-foreground">Loading time entries...</div>;
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Time Entries</h1>
-          <p className="text-sm text-muted-foreground">
-            Sync and link Timely time entries to your tasks
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isConnected ? (
-            <>
-              <Button variant="outline" onClick={handleSync} disabled={syncing}>
-                <RefreshCw className={cn("h-4 w-4 mr-2", syncing && "animate-spin")} />
-                {syncing ? "Syncing..." : "Sync"}
+    <div className="space-y-6 p-5 md:p-8">
+      <section className="rounded-2xl border border-border/70 bg-card/80 px-5 py-5 shadow-[0_16px_40px_-30px_oklch(0.22_0.02_258/0.45)] backdrop-blur-sm md:px-7 md:py-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Time Tracking</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">Time Entries</h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Sync and link Timely entries to tasks for cleaner reporting.
+            </p>
+          </div>
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+            {isConnected ? (
+              <>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={handleSync} disabled={syncing}>
+                  <RefreshCw className={cn("mr-2 h-4 w-4", syncing && "animate-spin")} />
+                  {syncing ? "Syncing..." : "Sync"}
+                </Button>
+                <Button variant="ghost" className="w-full sm:w-auto" onClick={handleDisconnect}>
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button className="w-full sm:w-auto" onClick={handleConnect}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Connect to Timely
               </Button>
-              <Button variant="ghost" onClick={handleDisconnect}>
-                Disconnect
-              </Button>
-            </>
-          ) : (
-            <Button onClick={handleConnect}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Connect to Timely
-            </Button>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Alerts */}
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-destructive">
           <AlertCircle className="h-4 w-4" />
-          {error}
+          <span className="text-sm">{error}</span>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 p-3 bg-green-500/10 text-green-600 dark:text-green-400 rounded-md">
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" />
-          {success}
+          <span className="text-sm">{success}</span>
         </div>
       )}
 
       {!isConnected ? (
-        <Card>
+        <Card className="border-border/70 bg-card/85">
           <CardHeader>
             <CardTitle>Connect to Timely</CardTitle>
             <CardDescription>
-              Connect your Timely account to sync time entries and link them to tasks in KillerProject.
+              Connect your Timely account to sync entries and link time directly to project tasks.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={handleConnect}>
-              <ExternalLink className="h-4 w-4 mr-2" />
+              <ExternalLink className="mr-2 h-4 w-4" />
               Connect to Timely
             </Button>
           </CardContent>
         </Card>
       ) : (
         <>
-          {/* Stats */}
           <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+            <Card className="border-border/70 bg-card/85">
               <CardHeader className="pb-2">
                 <CardDescription>Total Entries</CardDescription>
-                <CardTitle className="text-2xl">{stats.total}</CardTitle>
+                <CardTitle className="text-2xl tracking-tight">{stats.total}</CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className="border-border/70 bg-card/85">
               <CardHeader className="pb-2">
                 <CardDescription>Linked</CardDescription>
-                <CardTitle className="text-2xl text-green-600">{stats.linked}</CardTitle>
+                <CardTitle className="text-2xl tracking-tight text-emerald-600 dark:text-emerald-400">
+                  {stats.linked}
+                </CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className="border-border/70 bg-card/85">
               <CardHeader className="pb-2">
                 <CardDescription>Unlinked</CardDescription>
-                <CardTitle className="text-2xl text-amber-600">{stats.unlinked}</CardTitle>
+                <CardTitle className="text-2xl tracking-tight text-amber-600 dark:text-amber-400">
+                  {stats.unlinked}
+                </CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className="border-border/70 bg-card/85">
               <CardHeader className="pb-2">
                 <CardDescription>Total Hours</CardDescription>
-                <CardTitle className="text-2xl">{stats.totalHours.toFixed(1)}h</CardTitle>
+                <CardTitle className="text-2xl tracking-tight">{stats.totalHours.toFixed(1)}h</CardTitle>
               </CardHeader>
             </Card>
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-4">
-            <Select value={filterProject} onValueChange={setFilterProject}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Filter by project" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Timely Projects</SelectItem>
-                {timelyProjects.map((project) => (
-                  <SelectItem key={project} value={project}>
-                    {project}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <Card className="border-border/70 bg-card/85">
+            <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center md:w-auto">
+                <Select value={filterProject} onValueChange={setFilterProject}>
+                  <SelectTrigger className="w-full sm:w-[220px]">
+                    <SelectValue placeholder="Filter by project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Timely Projects</SelectItem>
+                    {timelyProjects.map((project) => (
+                      <SelectItem key={project} value={project}>
+                        {project}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={filterLinked} onValueChange={setFilterLinked}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Entries</SelectItem>
-                <SelectItem value="linked">Linked</SelectItem>
-                <SelectItem value="unlinked">Unlinked</SelectItem>
-              </SelectContent>
-            </Select>
+                <Select value={filterLinked} onValueChange={setFilterLinked}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Entries</SelectItem>
+                    <SelectItem value="linked">Linked</SelectItem>
+                    <SelectItem value="unlinked">Unlinked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredEntries.length} of {entries.length} entries
+              </p>
+            </CardContent>
+          </Card>
 
-            <div className="text-sm text-muted-foreground">
-              Showing {filteredEntries.length} of {entries.length} entries
-            </div>
-          </div>
-
-          {/* Entries list */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             {filteredEntries.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
+              <Card className="border-border/70 bg-card/85">
+                <CardContent className="py-10 text-center text-muted-foreground">
                   No time entries found. Click Sync to fetch entries from Timely.
                 </CardContent>
               </Card>
             ) : (
               filteredEntries.map((entry) => (
-                <Card key={entry.id}>
+                <Card key={entry.id} className="border-border/70 bg-card/85">
                   <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="font-medium">
-                            {Number(entry.hours).toFixed(2)}h
-                          </span>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="font-medium">{Number(entry.hours).toFixed(2)}h</span>
                           <span className="text-muted-foreground">
                             {format(new Date(entry.date + "T00:00:00"), "MMM d, yyyy")}
                           </span>
@@ -295,14 +303,12 @@ export default function TimeEntriesPage() {
                           )}
                         </div>
                         {entry.note && (
-                          <p className="mt-1 text-sm text-muted-foreground truncate">
-                            {entry.note}
-                          </p>
+                          <p className="mt-1 truncate text-sm text-muted-foreground">{entry.note}</p>
                         )}
                         {entry.task && (
                           <div className="mt-2 flex items-center gap-2">
-                            <Link2 className="h-3 w-3 text-green-600" />
-                            <span className="text-sm text-green-600">
+                            <Link2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-sm text-emerald-700 dark:text-emerald-300">
                               Linked to: {entry.task.title}
                             </span>
                             {entry.task.project && (
@@ -314,14 +320,11 @@ export default function TimeEntriesPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
+
+                      <div className="ml-0 flex w-full flex-wrap items-center gap-2 md:ml-4 md:w-auto md:justify-end">
                         {entry.linked_task_id ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleUnlink(entry)}
-                          >
-                            <Unlink className="h-4 w-4 mr-1" />
+                          <Button variant="ghost" size="sm" className="w-full sm:w-auto" onClick={() => handleUnlink(entry)}>
+                            <Unlink className="mr-1 h-4 w-4" />
                             Unlink
                           </Button>
                         ) : (
@@ -338,9 +341,10 @@ export default function TimeEntriesPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 onClick={() => setLinkingEntry(entry)}
                               >
-                                <Link2 className="h-4 w-4 mr-1" />
+                                <Link2 className="mr-1 h-4 w-4" />
                                 Link to Task
                               </Button>
                             </DialogTrigger>
@@ -354,7 +358,7 @@ export default function TimeEntriesPage() {
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                   <Input
                                     placeholder="Search tasks..."
                                     value={taskSearch}
@@ -368,18 +372,16 @@ export default function TimeEntriesPage() {
                                       <button
                                         key={task.id}
                                         onClick={() => handleLinkTask(task)}
-                                        className="w-full text-left p-3 rounded-md hover:bg-accent transition-colors"
+                                        className="w-full rounded-lg p-3 text-left transition-colors hover:bg-accent/80"
                                       >
                                         <div className="flex items-center gap-2">
                                           {task.project && (
                                             <div
-                                              className="h-2 w-2 rounded-full shrink-0"
+                                              className="h-2 w-2 shrink-0 rounded-full"
                                               style={{ backgroundColor: task.project.color }}
                                             />
                                           )}
-                                          <span className="font-medium truncate">
-                                            {task.title}
-                                          </span>
+                                          <span className="truncate font-medium">{task.title}</span>
                                         </div>
                                         {task.project && (
                                           <span className="text-xs text-muted-foreground">

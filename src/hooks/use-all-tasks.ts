@@ -77,7 +77,92 @@ export function useAllTasks() {
   }
 
   async function moveTask(id: string, newStatus: TaskStatus, newOrder: number) {
-    return updateTask(id, { status: newStatus, order: newOrder });
+    const targetTask = tasks.find((task) => task.id === id);
+    if (!targetTask) {
+      return { data: null, error: new Error("Task not found") };
+    }
+
+    const sourceStatus = targetTask.status;
+    const now = new Date().toISOString();
+
+    const sourceTasks = tasks
+      .filter((task) => !task.parent_task_id && task.status === sourceStatus && task.id !== id)
+      .sort((a, b) => a.order - b.order);
+
+    const destinationTasks = tasks
+      .filter((task) => !task.parent_task_id && task.status === newStatus && task.id !== id)
+      .sort((a, b) => a.order - b.order);
+
+    const clampIndex = (index: number, length: number) => Math.max(0, Math.min(index, length));
+
+    let reorderedSource = sourceTasks;
+    let reorderedDestination = destinationTasks;
+
+    if (sourceStatus === newStatus) {
+      const merged = [...sourceTasks];
+      merged.splice(clampIndex(newOrder, merged.length), 0, targetTask);
+      reorderedDestination = merged;
+    } else {
+      const movedTask = {
+        ...targetTask,
+        status: newStatus,
+        completed_at: newStatus === "done" ? now : null,
+      };
+      const updatedDestination = [...destinationTasks];
+      updatedDestination.splice(clampIndex(newOrder, updatedDestination.length), 0, movedTask);
+      reorderedSource = sourceTasks;
+      reorderedDestination = updatedDestination;
+    }
+
+    const updates = new Map<string, Partial<Task>>();
+
+    reorderedSource.forEach((task, orderIndex) => {
+      if (task.order !== orderIndex) {
+        updates.set(task.id, { order: orderIndex, updated_at: now });
+      }
+    });
+
+    reorderedDestination.forEach((task, orderIndex) => {
+      const existing = updates.get(task.id) ?? {};
+      const patch: Partial<Task> = { ...existing };
+
+      if (task.order !== orderIndex) {
+        patch.order = orderIndex;
+      }
+
+      if (task.id === id && sourceStatus !== newStatus) {
+        patch.status = newStatus;
+        patch.completed_at = newStatus === "done" ? now : null;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        patch.updated_at = now;
+        updates.set(task.id, patch);
+      }
+    });
+
+    if (!updates.size) return { data: null, error: null };
+
+    const previousTasks = tasks;
+    const nextTasks = tasks.map((task) => {
+      const patch = updates.get(task.id);
+      return patch ? ({ ...task, ...patch } as TaskWithProject) : task;
+    });
+    setTasks(nextTasks);
+
+    const results = await Promise.all(
+      Array.from(updates.entries()).map(([taskId, patch]) =>
+        supabase.from("tasks").update(patch).eq("id", taskId)
+      )
+    );
+
+    const failed = results.find((result) => result.error);
+    if (failed?.error) {
+      setTasks(previousTasks);
+      return { data: null, error: failed.error };
+    }
+
+    return { data: null, error: null };
   }
 
   async function createSubtask(parentTaskId: string, title: string) {

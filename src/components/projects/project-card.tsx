@@ -15,19 +15,23 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow group relative">
+    <Card className="group relative border-border/70 bg-card/85 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_30px_-24px_oklch(0.22_0.02_258/0.5)]">
       <CardHeader>
         <div className="flex items-center justify-between">
           <Link href={`/dashboard/projects/${project.id}`} className="flex items-center gap-2 flex-1 min-w-0">
             <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
             <CardTitle className="text-lg truncate">{project.name}</CardTitle>
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
               <DropdownMenuItem asChild>
                 <Link href={`/dashboard/projects/${project.id}`} className="flex items-center">

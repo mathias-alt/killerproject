@@ -24,6 +24,7 @@ import {
   Lightbulb,
   User,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -36,7 +37,15 @@ const navItems = [
   { href: "/dashboard/ideas", label: "Ideas", icon: Lightbulb },
 ];
 
-export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
+export function Sidebar({
+  forceCollapsed,
+  mobile = false,
+  onNavigate,
+}: {
+  forceCollapsed?: boolean;
+  mobile?: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { projects } = useProjects();
@@ -44,10 +53,11 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const { sidebarCollapsed, setSidebarCollapsed, sidebarStyle, setLayoutStyle } = useLayout();
 
-  const collapsed = forceCollapsed || sidebarCollapsed;
+  const collapsed = mobile ? false : forceCollapsed || sidebarCollapsed;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    onNavigate?.();
     router.push("/login");
     router.refresh();
   }
@@ -57,21 +67,38 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
       <div
         className={cn(
           "flex h-full flex-col transition-all duration-300",
-          collapsed ? "w-16" : "w-64",
+          mobile ? "h-screen w-[min(22rem,86vw)] border-r border-sidebar-border/70 bg-sidebar/95 shadow-2xl backdrop-blur-md" : collapsed ? "w-16" : "w-72",
           // Sidebar style: plain border (default)
-          sidebarStyle === "sidebar" && "border-r bg-background",
+          !mobile && sidebarStyle === "sidebar" && "border-r border-sidebar-border/70 bg-sidebar/80 backdrop-blur-sm",
           // Floating style: detached with shadow and border
-          sidebarStyle === "floating" && "rounded-xl border bg-background shadow-lg",
+          !mobile && sidebarStyle === "floating" && "rounded-2xl border border-sidebar-border/70 bg-sidebar/85 shadow-[0_20px_36px_-24px_oklch(0.22_0.02_258/0.4)] backdrop-blur-sm",
           // Inset style: subtle background, rounded
-          sidebarStyle === "inset" && "rounded-xl bg-muted/40"
+          !mobile && sidebarStyle === "inset" && "rounded-2xl border border-sidebar-border/50 bg-sidebar/75 backdrop-blur-sm"
         )}
       >
         {/* Logo */}
-        <div className={cn("flex h-14 items-center gap-2 px-4 font-bold text-lg", collapsed && "justify-center px-0")}>
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs shrink-0">
+        <div className={cn("flex h-16 items-center gap-2 px-4", collapsed && "justify-center px-0")}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs shadow-[0_10px_20px_-12px_oklch(0.54_0.16_253/0.9)] shrink-0">
             <Zap className="h-4 w-4" />
           </div>
-          {!collapsed && <Link href="/dashboard">KillerProject</Link>}
+          {!collapsed && (
+            <div className="min-w-0">
+              <Link href="/dashboard" className="block truncate text-[15px] font-semibold tracking-tight">
+                KillerProject
+              </Link>
+              <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">Control Center</p>
+            </div>
+          )}
+          {mobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-8 w-8 rounded-lg"
+              onClick={onNavigate}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <Separator />
 
@@ -90,9 +117,10 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onNavigate}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                    isActive && "bg-accent text-accent-foreground",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/70 hover:text-accent-foreground",
+                    isActive && "bg-primary/12 text-foreground ring-1 ring-primary/20",
                     collapsed && "justify-center px-2"
                   )}
                 >
@@ -122,9 +150,10 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                 <TooltipTrigger asChild>
                   <Link
                     href="/dashboard/projects"
+                    onClick={onNavigate}
                     className={cn(
-                      "flex items-center justify-center rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
-                      pathname === "/dashboard/projects" && "bg-accent text-accent-foreground"
+                      "flex items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/70",
+                      pathname === "/dashboard/projects" && "bg-primary/12 text-foreground ring-1 ring-primary/20"
                     )}
                   >
                     <FolderOpen className="h-4 w-4" />
@@ -136,7 +165,7 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
               <>
                 <button
                   onClick={() => setProjectsOpen(!projectsOpen)}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground"
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground"
                 >
                   Projects
                   <ChevronDown
@@ -147,9 +176,10 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                   <div className="mt-1 space-y-1">
                     <Link
                       href="/dashboard/projects"
+                      onClick={onNavigate}
                       className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent",
-                        pathname === "/dashboard/projects" && "bg-accent text-accent-foreground"
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent/70",
+                        pathname === "/dashboard/projects" && "bg-primary/12 text-foreground ring-1 ring-primary/20"
                       )}
                     >
                       <FolderOpen className="h-4 w-4 shrink-0" />
@@ -159,9 +189,10 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                       <Link
                         key={project.id}
                         href={`/dashboard/projects/${project.id}`}
+                        onClick={onNavigate}
                         className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-                          pathname === `/dashboard/projects/${project.id}` && "bg-accent text-accent-foreground"
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent/70",
+                          pathname === `/dashboard/projects/${project.id}` && "bg-primary/12 text-foreground ring-1 ring-primary/20"
                         )}
                       >
                         <div
@@ -186,9 +217,10 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                 <TooltipTrigger asChild>
                   <Link
                     href="/dashboard/profile"
+                    onClick={onNavigate}
                     className={cn(
-                      "flex items-center justify-center rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
-                      pathname === "/dashboard/profile" && "bg-accent text-accent-foreground"
+                      "flex items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/70",
+                      pathname === "/dashboard/profile" && "bg-primary/12 text-foreground ring-1 ring-primary/20"
                     )}
                   >
                     <User className="h-4 w-4" />
@@ -209,22 +241,25 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                 </TooltipTrigger>
                 <TooltipContent side="right">Sign Out</TooltipContent>
               </Tooltip>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-full"
-                onClick={() => { setSidebarCollapsed(false); setLayoutStyle("default"); }}
-              >
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
+              {!mobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-full"
+                  onClick={() => { setSidebarCollapsed(false); setLayoutStyle("default"); }}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              )}
             </>
           ) : (
             <>
               <Link
                 href="/dashboard/profile"
+                onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                  pathname === "/dashboard/profile" && "bg-accent text-accent-foreground"
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
+                  pathname === "/dashboard/profile" && "bg-primary/12 text-foreground ring-1 ring-primary/20"
                 )}
               >
                 <User className="h-4 w-4" />
@@ -238,14 +273,16 @@ export function Sidebar({ forceCollapsed }: { forceCollapsed?: boolean }) {
                 <LogOut className="h-4 w-4" />
                 Sign Out
               </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 text-sm text-muted-foreground hover:text-foreground"
-                onClick={() => { setSidebarCollapsed(true); setLayoutStyle("compact"); }}
-              >
-                <ChevronsLeft className="h-4 w-4" />
-                Collapse
-              </Button>
+              {!mobile && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => { setSidebarCollapsed(true); setLayoutStyle("compact"); }}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                  Collapse
+                </Button>
+              )}
             </>
           )}
         </div>

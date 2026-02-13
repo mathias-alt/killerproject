@@ -326,15 +326,13 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-full bg-background">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-muted/30">
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1">
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-[0_16px_40px_-30px_oklch(0.22_0.02_258/0.45)] backdrop-blur-sm">
+        <div className="flex flex-col gap-2 border-b border-border/70 bg-background/65 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex w-full items-center gap-1 sm:w-auto">
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={zoomOut} disabled={zoom === "month"}>
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <div className="px-2 text-sm font-medium min-w-[60px] text-center">
+            <div className="min-w-[60px] px-2 text-center text-sm font-medium">
               {zoom.charAt(0).toUpperCase() + zoom.slice(1)}
             </div>
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={zoomIn} disabled={zoom === "day"}>
@@ -342,13 +340,12 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
             </Button>
           </div>
 
-          <div className="h-6 w-px bg-border" />
+          <div className="hidden h-6 w-px bg-border sm:block" />
 
-          {/* Sort */}
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as GanttSortOption)}>
-              <SelectTrigger className="w-[120px] h-8">
+              <SelectTrigger className="h-8 w-full sm:w-[120px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
@@ -361,19 +358,17 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
             </Select>
           </div>
 
-          <div className="h-6 w-px bg-border" />
+          <div className="hidden h-6 w-px bg-border sm:block" />
 
-          {/* Filters */}
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Filter className="h-4 w-4 text-muted-foreground" />
 
-            {/* Project filter */}
             {projects && projects.length > 0 && (
               <Select
                 value={filters.projectId}
                 onValueChange={(v) => setFilters((f) => ({ ...f, projectId: v }))}
               >
-                <SelectTrigger className="w-[140px] h-8">
+                <SelectTrigger className="h-8 w-full sm:w-[140px]">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -393,12 +388,11 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
               </Select>
             )}
 
-            {/* Priority filter */}
             <Select
               value={filters.priority}
               onValueChange={(v) => setFilters((f) => ({ ...f, priority: v }))}
             >
-              <SelectTrigger className="w-[110px] h-8">
+              <SelectTrigger className="h-8 w-full sm:w-[110px]">
                 <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
               <SelectContent>
@@ -413,13 +407,12 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
               </SelectContent>
             </Select>
 
-            {/* Assignee filter */}
             {profiles && profiles.length > 0 && (
               <Select
                 value={filters.assigneeId}
                 onValueChange={(v) => setFilters((f) => ({ ...f, assigneeId: v }))}
               >
-                <SelectTrigger className="w-[140px] h-8">
+                <SelectTrigger className="h-8 w-full sm:w-[140px]">
                   <SelectValue placeholder="All Assignees" />
                 </SelectTrigger>
                 <SelectContent>
@@ -434,11 +427,9 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
             )}
           </div>
 
-          <div className="h-6 w-px bg-border" />
-
-          <span className="text-xs text-muted-foreground">
+          <div className="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto">
             {dependencyDrag ? (
-              <span className="text-primary font-medium">
+              <span className="font-medium text-primary">
                 Drop on a task to create dependency
               </span>
             ) : (
@@ -448,19 +439,22 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                   <span className="text-muted-foreground/70"> (filtered)</span>
                 )}
                 {onAddDependency && (
-                  <span className="ml-2 text-muted-foreground/70">• Drag between task handles to link</span>
+                  <span className="ml-2 hidden text-muted-foreground/70 lg:inline">• Drag between task handles to link</span>
                 )}
               </>
             )}
-          </span>
+          </div>
         </div>
 
-        {/* Chart body - sidebar sticky left, timeline scrolls horizontally */}
-        <div className={cn("flex flex-1 overflow-hidden", dependencyDrag && "cursor-crosshair")}>
-          {/* Sticky Sidebar - syncs vertical scroll with timeline */}
+        <div
+          className={cn(
+            "flex flex-1 overflow-hidden bg-[linear-gradient(180deg,transparent,oklch(0.9_0.01_252/0.08))]",
+            dependencyDrag && "cursor-crosshair"
+          )}
+        >
           <div
             ref={sidebarRef}
-            className="shrink-0 border-r bg-background z-10 overflow-y-hidden overflow-x-hidden"
+            className="z-10 shrink-0 overflow-x-hidden overflow-y-hidden border-r border-border/70 bg-background/70"
           >
             <GanttSidebar
               tasks={tasksWithDates}
@@ -474,13 +468,11 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
             />
           </div>
 
-          {/* Timeline - scrollable both directions */}
           <div className="flex-1 overflow-auto" ref={scrollRef}>
             <div ref={chartRef} style={{ width: timelineWidth, minHeight: "100%" }}>
               <GanttHeader startDate={timelineStart} endDate={timelineEnd} zoom={zoom} dayWidth={dayWidth} />
 
               <div className="relative">
-                {/* Weekend shading columns */}
                 {zoom === "day" && days.map((day, i) => {
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   if (!isWeekend) return null;
@@ -493,7 +485,6 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                   );
                 })}
 
-                {/* Dependency arrows */}
                 <svg
                   className="absolute top-0 left-0 z-[5] pointer-events-none"
                   style={{ width: timelineWidth, height: Math.max(tasksWithDates.length * ROW_HEIGHT, 200) }}
@@ -507,7 +498,6 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                     </marker>
                   </defs>
 
-                  {/* Existing dependency arrows */}
                   {arrows.map((a) => {
                     const path = a.y1 === a.y2
                       ? `M ${a.x1} ${a.y1} L ${a.x2} ${a.y2}`
@@ -536,7 +526,6 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                     );
                   })}
 
-                  {/* Drag line */}
                   {dragLine && (
                     <path
                       d={`M ${dragLine.x1} ${dragLine.y1} L ${dragLine.x2} ${dragLine.y2}`}
@@ -549,7 +538,6 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                   )}
                 </svg>
 
-                {/* Today line */}
                 {todayOffset >= 0 && todayOffset <= timelineWidth && (
                   <div
                     className="absolute top-0 w-0.5 bg-red-500 z-10"
@@ -557,13 +545,12 @@ export function GanttChart({ tasks, projects, profiles, dependencies = [], onUpd
                   />
                 )}
 
-                {/* Task rows */}
                 {tasksWithDates.map((task, index) => (
                   <div
                     key={task.id}
                     className={cn(
                       "relative border-b",
-                      index % 2 === 0 ? "bg-background" : "bg-muted/10",
+                      index % 2 === 0 ? "bg-background/70" : "bg-muted/20",
                       dependencyDrag?.sourceTaskId === task.id && "bg-primary/10"
                     )}
                     style={{ height: ROW_HEIGHT }}

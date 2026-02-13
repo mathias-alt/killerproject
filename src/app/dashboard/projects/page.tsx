@@ -34,13 +34,14 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-5 md:p-8">
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border/70 bg-card/80 px-5 py-5 shadow-[0_16px_40px_-30px_oklch(0.22_0.02_258/0.45)] backdrop-blur-sm md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">All Projects</h2>
-          <p className="text-sm text-muted-foreground">Manage and view your projects</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Portfolio</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">All Projects</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Manage and view your projects</p>
         </div>
-        <Button onClick={handleNewProject}>New Project</Button>
+        <Button className="w-full md:w-auto" onClick={handleNewProject}>New Project</Button>
       </div>
 
       {loading ? (
