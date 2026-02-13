@@ -25,10 +25,12 @@ import {
   User,
   CheckCircle2,
   X,
+  Target,
 } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
+  { href: "/dashboard/today", label: "Today", icon: Target },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/kanban", label: "Kanban Board", icon: Columns3 },
   { href: "/dashboard/gantt", label: "Gantt Chart", icon: GanttChart },

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useProjects } from "@/hooks/use-projects";
 import { useAllTasks } from "@/hooks/use-all-tasks";
 import { StatsCards } from "@/components/dashboard/stats-cards";
@@ -19,9 +20,18 @@ import {
 } from "@/components/ui/select";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { projects, loading: projectsLoading } = useProjects();
   const { tasks, loading: tasksLoading } = useAllTasks();
   const [selectedProjectId, setSelectedProjectId] = useState<string>("all");
+
+  // Redirect mobile users to Today page
+  useEffect(() => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (isMobile) {
+      router.replace("/dashboard/today");
+    }
+  }, [router]);
 
   const filteredTasks = useMemo(() => {
     if (selectedProjectId === "all") return tasks;
